@@ -235,7 +235,7 @@ impl State {
 }
 
 async fn async_main() -> std::result::Result<(), anyhow::Error> {
-    let mut state = (State::new(64, 64).await)?;
+    let mut state = (State::new(256, 256).await)?;
     state.draw().await?;
     state.save("/tmp/image.png").await?;
 

@@ -16,5 +16,12 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VsOut {
 
 @fragment
 fn fs_main(vs: VsOut) -> @location(0) vec4<f32> {
-    return vec4(0.3, 0.2, 0.1, 1.0);
+    // Seriously, how do we print here...
+    // vs.frag_position.x -> pixel index from the left.
+    // vs.frag_position.y -> pixel index from the top
+    if (vs.frag_position.y > (128 + 32)) {
+        return vec4(0.3, 0.2, 0.1, 1.0);
+    } else {
+        return vec4(1, abs(sin(f32((vs.frag_position.x -128 )) / 32)), cos(f32(vs.frag_position.y - 64) / 32), 1);
+    }
 }
