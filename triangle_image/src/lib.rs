@@ -1,7 +1,7 @@
 // I started with [this](https://sotrh.github.io/learn-wgpu/beginner/tutorial1-window/), but that started setting up
 // application state while we should be able to just render to an image??
 //
-// Lets just start with tutorial 2.
+// Lets just start with tutorial 2, and pick from tutorial 1 as we see fit.
 
 pub struct State {
     instance: wgpu::Instance,
