@@ -1,4 +1,4 @@
-const positions: array<vec2<f32>, 3> = array(
+/*const positions: array<vec2<f32>, 3> = array(
     vec2(0.0, 0.5),
     vec2(-0.5, -0.5),
     vec2(0.5, -0.5),
@@ -24,4 +24,36 @@ fn fs_main(vs: VsOut) -> @location(0) vec4<f32> {
     } else {
         return vec4(1, abs(sin(f32((vs.frag_position.x -128 )) / 32)), cos(f32(vs.frag_position.y - 64) / 32), 1);
     }
+}
+*/
+
+// Vertex shader
+
+struct VertexInput {
+    @location(0) position: vec3<f32>,
+    @location(1) color: vec3<f32>,
+};
+
+struct VertexOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) color: vec3<f32>,
+};
+
+@vertex
+fn vs_main(
+    model: VertexInput,
+) -> VertexOutput {
+    var out: VertexOutput;
+    out.color = model.color;
+    out.clip_position = vec4<f32>(model.position, 1.0);
+    return out;
+}
+
+// Fragment shader
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    if (in.clip_position.x == 128) {
+        return vec4<f32>(0.0, 0.0, 0.0, 1.0);
+    }
+    return vec4<f32>(in.color, 0.9);
 }

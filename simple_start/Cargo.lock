@@ -1600,6 +1600,8 @@ dependencies = [
  "pollster",
  "wgpu",
  "winit",
+ "zerocopy",
+ "zerocopy-derive",
 ]
 
 [[package]]

@@ -1,7 +1,11 @@
 use log::*;
 use simple_start::State;
+use wgpu::util::DeviceExt;
+
+// https://sotrh.github.io/learn-wgpu/beginner/tutorial4-buffer/
 
 struct LocalState(pub State);
+
 impl std::ops::Deref for LocalState {
     type Target = State;
 
@@ -10,11 +14,88 @@ impl std::ops::Deref for LocalState {
     }
 }
 
+use zerocopy::{Immutable, IntoBytes};
+#[repr(C)]
+#[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
+}
+// Big oof... there ought to be a derive macro for this?
+impl Vertex {
+    const ATTRIBS: [wgpu::VertexAttribute; 2] =
+        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+
+    fn desc() -> wgpu::VertexBufferLayout<'static> {
+        use std::mem;
+
+        wgpu::VertexBufferLayout {
+            array_stride: mem::size_of::<Self>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &Self::ATTRIBS,
+        }
+    }
+    fn desc_expanded() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+            ],
+        }
+    }
+}
+
+const VERTICES: &[Vertex] = &[
+    Vertex {
+        position: [-0.0868241, 0.49240386, 0.0],
+        color: [0.0, 0.0, 0.0],
+    }, // A
+    Vertex {
+        position: [-0.49513406, 0.06958647, 0.0],
+        color: [1.0, 0.0, 0.0],
+    }, // B
+    Vertex {
+        position: [-0.21918549, -0.44939706, 0.0],
+        color: [0.0, 1.0, 0.0],
+    }, // C
+    Vertex {
+        position: [0.35966998, -0.3473291, 0.0],
+        color: [0.0, 0.0, 1.0],
+    }, // D
+    Vertex {
+        position: [0.44147372, 0.2347359, 0.0],
+        color: [0.0, 0.0, 0.0],
+    }, // E
+];
+const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4, /* padding */ 0];
+
 impl LocalState {
     pub async fn draw(&self) -> anyhow::Result<()> {
         // Something something... fragment shader... set colors? >_<
         let device = &self.device;
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: VERTICES.as_bytes(),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: INDICES.as_bytes(),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        let num_indices = INDICES.len() as u32;
 
         let texture_format = self.texture_view.texture().format();
         let extent = wgpu::Extent3d {
@@ -36,7 +117,8 @@ impl LocalState {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: None,
-                buffers: &[],
+                // buffers: &[],
+                buffers: &[Vertex::desc()],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -103,6 +185,9 @@ impl LocalState {
             let mut render_pass = encoder.begin_render_pass(&render_pass_desc);
 
             render_pass.set_pipeline(&render_pipeline);
+            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+            render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..num_indices, 0, 0..1);
             render_pass.draw(0..3, 0..1);
         }
 

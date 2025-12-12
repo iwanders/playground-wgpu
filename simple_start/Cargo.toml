@@ -14,3 +14,5 @@ wgpu = "27.0.0"
 pollster = "0.3"
 image = {version="0.25.9", default-features=false, features=["png"]}
 futures-intrusive = "0.5.0"
+zerocopy = "0.8"
+zerocopy-derive = "0.8"
