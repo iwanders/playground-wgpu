@@ -218,8 +218,8 @@ impl LocalState {
 
         let mut vs = VERTICES;
         for x in vs.iter_mut() {
-            let angle = simple_start::get_angle_f32(0.2);
-            // let angle = 0.0;
+            // let angle = simple_start::get_angle_f32(0.2);
+            let angle = 0.6;
             x.position = Mat4::from_rotation_z(angle).transform_point3(x.position);
         }
 
@@ -245,6 +245,8 @@ impl LocalState {
         let depth_texture = device.create_texture(&depth_desc);
 
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        /*
+        // We only need the depth sampler for sampling textures.
         let depth_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             // 4.
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -258,6 +260,8 @@ impl LocalState {
             lod_max_clamp: 100.0,
             ..Default::default()
         });
+
+        */
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
