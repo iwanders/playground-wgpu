@@ -80,7 +80,7 @@ use glam::vec3;
 const VERTICES: [Vertex; 5] = [
     Vertex {
         position: vec3(-0.5, -0.5, -0.3),
-        color: vec3(1.0, 1.0, 1.0),
+        color: vec3(0.0, 0.0, 1.0),
     }, // base 0
     Vertex {
         position: vec3(0.5, -0.5, -0.3),
@@ -88,21 +88,26 @@ const VERTICES: [Vertex; 5] = [
     }, //  base 1
     Vertex {
         position: vec3(0.5, 0.5, -0.3),
-        color: vec3(1.0, 1.0, 1.0),
+        color: vec3(0.0, 1.0, 0.0),
     }, //  base 2
     Vertex {
         position: vec3(-0.5, 0.5, -0.3),
-        color: vec3(1.0, 1.0, 1.0),
+        color: vec3(1.0, 0.0, 0.0),
     }, //  base 3
     Vertex {
         position: vec3(0.0, 0.0, 0.5),
-        color: vec3(0.0, 0.5, 0.0),
-    }, // top
+        color: vec3(1.0, 1.0, 1.0),
+    }, // top 4
 ];
 const INDICES: &[u16] = &[
     // Base
-    0, 1, 2, 0, 2, 3, // Sides
-    0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4,
+    0, 1, 2, //
+    0, 2, 3, //
+    // side
+    0, 1, 4, //
+    1, 2, 4, //
+    2, 3, 4, //
+    3, 0, 4,
 ];
 
 impl LocalState {
@@ -122,7 +127,7 @@ impl LocalState {
             },
             aspect: self.width as f32 / self.height as f32,
             fovy: 90.0,
-            znear: 1.0,
+            znear: 0.001,
             zfar: 1000.0,
         };
         let camera_uniform = camera.to_uniform();
