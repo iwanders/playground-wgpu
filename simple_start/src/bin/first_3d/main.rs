@@ -116,9 +116,9 @@ impl LocalState {
         let camera = Camera {
             // position the camera 1 unit up and 2 units back
             // +z is out of the screen
-            eye: (0.0, 0.0, -1.6).into(),
+            eye: (0.0, 1.2, 0.0).into(),
             // have it look at the origin
-            target: (0.0, 3.5, -10.0).into(),
+            target: (0.0, 6.5, -1.0).into(),
             // which way is "up"
             up: Vec3 {
                 x: 0.0,
@@ -145,9 +145,9 @@ impl LocalState {
 
         let mut vs = VERTICES;
         for x in vs.iter_mut() {
-            let angle = simple_start::get_angle_f32(0.5);
+            let angle = simple_start::get_angle_f32(0.2);
             // let angle = 0.0;
-            x.position = Mat4::from_rotation_x(angle).transform_point3(x.position);
+            x.position = Mat4::from_rotation_z(angle).transform_point3(x.position);
         }
 
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
