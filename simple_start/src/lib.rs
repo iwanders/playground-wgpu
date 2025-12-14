@@ -92,7 +92,6 @@ impl State {
         })
     }
 
-
     pub async fn save<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         let p: &Path = path.as_ref();
         let buffer_slice = self.buffer.slice(..);
@@ -116,4 +115,16 @@ impl State {
             .save(p)
             .with_context(|| format!("failed to save to {p:?}"))
     }
+}
+
+pub fn get_current_time_f64() -> f64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let now = SystemTime::now();
+    let duration_since_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
+
+    return duration_since_epoch.as_secs_f64();
+}
+
+pub fn get_angle_f32(rate: f32) -> f32 {
+    (crate::get_current_time_f64() * rate as f64).rem_euclid(2.0 * std::f64::consts::PI) as f32
 }

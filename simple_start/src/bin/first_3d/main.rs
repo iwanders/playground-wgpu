@@ -96,7 +96,7 @@ const VERTICES: [Vertex; 5] = [
     }, //  base 3
     Vertex {
         position: vec3(0.0, 0.0, 0.5),
-        color: vec3(0.5, 0.5, 0.5),
+        color: vec3(0.0, 0.5, 0.0),
     }, // top
 ];
 const INDICES: &[u16] = &[
@@ -111,7 +111,7 @@ impl LocalState {
         let camera = Camera {
             // position the camera 1 unit up and 2 units back
             // +z is out of the screen
-            eye: (0.0, 0.5, -1.6).into(),
+            eye: (0.0, 0.0, -1.6).into(),
             // have it look at the origin
             target: (0.0, 3.5, -10.0).into(),
             // which way is "up"
@@ -122,8 +122,8 @@ impl LocalState {
             },
             aspect: self.width as f32 / self.height as f32,
             fovy: 90.0,
-            znear: 0.0,
-            zfar: 1.0,
+            znear: 1.0,
+            zfar: 1000.0,
         };
         let camera_uniform = camera.to_uniform();
         warn!("camera_uniform: {camera_uniform:?}");
@@ -140,7 +140,9 @@ impl LocalState {
 
         let mut vs = VERTICES;
         for x in vs.iter_mut() {
-            x.position = Mat4::from_rotation_x(0.4 * 3.1415926).transform_point3(x.position);
+            let angle = simple_start::get_angle_f32(0.5);
+            // let angle = 0.0;
+            x.position = Mat4::from_rotation_x(angle).transform_point3(x.position);
         }
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
