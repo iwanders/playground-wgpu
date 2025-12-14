@@ -6,6 +6,8 @@ use wgpu::util::DeviceExt;
 // Skipping over textures and bindgroups
 // https://sotrh.github.io/learn-wgpu/beginner/tutorial6-uniforms/
 
+// https://eliemichel.github.io/LearnWebGPU/basic-3d-rendering/3d-meshes/a-simple-example.html
+
 struct LocalState(pub State);
 
 impl std::ops::Deref for LocalState {
@@ -20,8 +22,8 @@ use zerocopy::{Immutable, IntoBytes};
 #[repr(C)]
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
 struct Vertex {
-    position: [f32; 3],
-    color: [f32; 3],
+    position: Vec3,
+    color: Vec3,
 }
 // Big oof... there ought to be a derive macro for this?
 impl Vertex {
@@ -35,24 +37,6 @@ impl Vertex {
             array_stride: mem::size_of::<Self>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &Self::ATTRIBS,
-        }
-    }
-    fn desc_expanded() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-            ],
         }
     }
 }
@@ -92,29 +76,34 @@ struct CameraUniform {
     view_proj: Mat4,
 }
 
-const VERTICES: &[Vertex] = &[
+use glam::vec3;
+const VERTICES: [Vertex; 5] = [
     Vertex {
-        position: [-0.0868241, 0.49240386, 0.0],
-        color: [0.0, 0.0, 0.0],
-    }, // A
+        position: vec3(-0.5, -0.5, -0.3),
+        color: vec3(1.0, 1.0, 1.0),
+    }, // base 0
     Vertex {
-        position: [-0.49513406, 0.06958647, 0.0],
-        color: [1.0, 0.0, 0.0],
-    }, // B
+        position: vec3(0.5, -0.5, -0.3),
+        color: vec3(1.0, 1.0, 1.0),
+    }, //  base 1
     Vertex {
-        position: [-0.21918549, -0.44939706, 0.0],
-        color: [0.0, 1.0, 0.0],
-    }, // C
+        position: vec3(0.5, 0.5, -0.3),
+        color: vec3(1.0, 1.0, 1.0),
+    }, //  base 2
     Vertex {
-        position: [0.35966998, -0.3473291, 0.0],
-        color: [0.0, 0.0, 1.0],
-    }, // D
+        position: vec3(-0.5, 0.5, -0.3),
+        color: vec3(1.0, 1.0, 1.0),
+    }, //  base 3
     Vertex {
-        position: [0.44147372, 0.2347359, 0.0],
-        color: [0.0, 0.0, 0.0],
-    }, // E
+        position: vec3(0.0, 0.0, 0.5),
+        color: vec3(0.5, 0.5, 0.5),
+    }, // top
 ];
-const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4, /* padding */ 0];
+const INDICES: &[u16] = &[
+    // Base
+    0, 1, 2, 0, 2, 3, // Sides
+    0, 1, 4, 1, 2, 4, 2, 3, 4, 3, 0, 4,
+];
 
 impl LocalState {
     // https://github.com/gfx-rs/gfx/tree/master/src/backend/dx12#normalized-coordinates
@@ -122,9 +111,9 @@ impl LocalState {
         let camera = Camera {
             // position the camera 1 unit up and 2 units back
             // +z is out of the screen
-            eye: (0.0, 0.0, -0.6).into(),
+            eye: (0.0, 0.5, -1.6).into(),
             // have it look at the origin
-            target: (0.0, 0.0, -10.0).into(),
+            target: (0.0, 3.5, -10.0).into(),
             // which way is "up"
             up: Vec3 {
                 x: 0.0,
@@ -149,9 +138,14 @@ impl LocalState {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
+        let mut vs = VERTICES;
+        for x in vs.iter_mut() {
+            x.position = Mat4::from_rotation_x(0.4 * 3.1415926).transform_point3(x.position);
+        }
+
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: VERTICES.as_bytes(),
+            contents: vs.as_bytes(),
             usage: wgpu::BufferUsages::VERTEX,
         });
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -303,7 +297,7 @@ impl LocalState {
 }
 
 async fn async_main() -> std::result::Result<(), anyhow::Error> {
-    let mut state = LocalState(State::new(256, 256).await?);
+    let state = LocalState(State::new(512, 512).await?);
     state.draw().await?;
     state.save("/tmp/first_3d.png").await?;
 
