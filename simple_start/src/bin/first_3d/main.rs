@@ -1,3 +1,4 @@
+use glam::{Mat4, Vec3, vec3};
 use log::*;
 use simple_start::State;
 use wgpu::util::DeviceExt;
@@ -23,12 +24,119 @@ use zerocopy::{Immutable, IntoBytes};
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
 struct Vertex {
     position: Vec3,
+    normal: Vec3,
     color: Vec3,
 }
-// Big oof... there ought to be a derive macro for this?
 impl Vertex {
-    const ATTRIBS: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+    pub const fn pnc(position: Vec3, normal: Vec3, color: Vec3) -> Self {
+        Self {
+            position,
+            normal,
+            color,
+        }
+    }
+}
+
+const VERTICES: [Vertex; 16] = [
+    // The base
+    Vertex::pnc(
+        vec3(-0.5, -0.5, -0.3),
+        vec3(0.0, -1.0, 0.0),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(0.5, -0.5, -0.3),
+        vec3(0.0, -1.0, 0.0),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(0.5, 0.5, -0.3),
+        vec3(0.0, -1.0, 0.0),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(-0.5, 0.5, -0.3),
+        vec3(0.0, -1.0, 0.0),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    // Face sides have their own copy of the vertices
+    // because they have a different normal vector.
+    Vertex::pnc(
+        vec3(-0.5, -0.5, -0.3),
+        vec3(0.0, -0.848, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(0.5, -0.5, -0.3),
+        vec3(0.0, -0.848, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(0.0, 0.0, 0.5),
+        vec3(0.0, -0.848, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(0.5, -0.5, -0.3),
+        vec3(0.848, 0.0, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(0.5, 0.5, -0.3),
+        vec3(0.848, 0.0, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(0.0, 0.0, 0.5),
+        vec3(0.848, 0.0, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(0.5, 0.5, -0.3),
+        vec3(0.0, 0.848, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(-0.5, 0.5, -0.3),
+        vec3(0.0, 0.848, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(0.0, 0.0, 0.5),
+        vec3(0.0, 0.848, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(-0.5, 0.5, -0.3),
+        vec3(-0.848, 0.0, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(-0.5, -0.5, -0.3),
+        vec3(-0.848, 0.0, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3(0.0, 0.0, 0.5),
+        vec3(-0.848, 0.0, 0.53),
+        vec3(1.0, 1.0, 1.0),
+    ),
+];
+const INDICES: &[u16] = &[
+    // Base
+    0, 1, 2, //
+    0, 2, 3, //
+    // side
+    4, 5, 6, //
+    7, 8, 9, //
+    10, 11, 12, //
+    13, 14, 15,
+];
+
+// Attrib has to be in sync with Vertex.
+impl Vertex {
+    const ATTRIBS: [wgpu::VertexAttribute; 3] =
+        wgpu::vertex_attr_array![0 => Float32x3,  1 => Float32x3,  2 => Float32x3];
 
     fn desc() -> wgpu::VertexBufferLayout<'static> {
         use std::mem;
@@ -41,7 +149,6 @@ impl Vertex {
     }
 }
 
-use glam::{Mat4, Vec3};
 struct Camera {
     eye: Vec3,
     target: Vec3,
@@ -76,49 +183,15 @@ struct CameraUniform {
     view_proj: Mat4,
 }
 
-use glam::vec3;
-const VERTICES: [Vertex; 5] = [
-    Vertex {
-        position: vec3(-0.5, -0.5, -0.3),
-        color: vec3(0.0, 0.0, 1.0),
-    }, // base 0
-    Vertex {
-        position: vec3(0.5, -0.5, -0.3),
-        color: vec3(1.0, 1.0, 1.0),
-    }, //  base 1
-    Vertex {
-        position: vec3(0.5, 0.5, -0.3),
-        color: vec3(0.0, 1.0, 0.0),
-    }, //  base 2
-    Vertex {
-        position: vec3(-0.5, 0.5, -0.3),
-        color: vec3(1.0, 0.0, 0.0),
-    }, //  base 3
-    Vertex {
-        position: vec3(0.0, 0.0, 0.5),
-        color: vec3(1.0, 1.0, 1.0),
-    }, // top 4
-];
-const INDICES: &[u16] = &[
-    // Base
-    0, 1, 2, //
-    0, 2, 3, //
-    // side
-    0, 1, 4, //
-    1, 2, 4, //
-    2, 3, 4, //
-    3, 0, 4,
-];
-
 impl LocalState {
     // https://github.com/gfx-rs/gfx/tree/master/src/backend/dx12#normalized-coordinates
     pub async fn draw(&self) -> anyhow::Result<()> {
         let camera = Camera {
             // position the camera 1 unit up and 2 units back
             // +z is out of the screen
-            eye: (0.0, 1.2, 0.0).into(),
+            eye: (0.0, 1.7, 0.0).into(),
             // have it look at the origin
-            target: (0.0, 6.5, -1.0).into(),
+            target: (0.0, 6.0, -1.0).into(),
             // which way is "up"
             up: Vec3 {
                 x: 0.0,
