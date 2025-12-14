@@ -16,3 +16,4 @@ image = {version="0.25.9", default-features=false, features=["png"]}
 futures-intrusive = "0.5.0"
 zerocopy = "0.8"
 zerocopy-derive = "0.8"
+glam = {version="0.30.9", features=["zerocopy"]}
