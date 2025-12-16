@@ -19,7 +19,8 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec3<f32>,
     @location(1) normal: vec3<f32>,
-    @location(2) texelCoords: vec2f,
+    //@location(2) texelCoords: vec2f,
+    @location(2) uv: vec2f,
 };
 
 @vertex
@@ -33,8 +34,8 @@ fn vs_main(
     out.normal = model.normal;
     // In plane.obj, the vertex xy coords range from -1 to 1
     // and we remap this to (0, 256), the size of our texture.
-    // but our quad is from -0.5 to 0.5... and something is rotated :(
-    out.texelCoords = (model.position.xy + 0.5) * 256.0;
+    // but our quad is from -0.5 to 0.5... ~and something is rotated :(~ ah my mesh was.
+    out.uv = (model.position.xy + 0.5);
 
 
 
@@ -47,7 +48,9 @@ fn vs_main(
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     //let colorz = textureLoad(gradientTexture, vec2i(in.clip_position.xy), 0).rgb;
-    let colorz = textureLoad(gradientTexture, vec2i(in.texelCoords), 0).rgb;
+    //let colorz = textureLoad(gradientTexture, vec2i(in.uv), 0).rgb;
+    let texelCoords = vec2i(in.uv * vec2f(textureDimensions(gradientTexture)));
+    let colorz = textureLoad(gradientTexture, texelCoords, 0).rgb;
     return vec4<f32>(colorz, 1.0);
     // let color = in.normal * 0.5 + 0.5;
     // let color = in.color * in.normal.x;

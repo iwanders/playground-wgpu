@@ -147,7 +147,8 @@ impl LocalState {
         let mut vs = VERTICES;
         for x in vs.iter_mut() {
             // let angle = simple_start::get_angle_f32(0.2);
-            let angle = 0.6;
+            // let angle = 0.6;
+            let angle = 0.0;
             x.position = Mat4::from_rotation_z(angle).transform_point3(x.position);
         }
 
