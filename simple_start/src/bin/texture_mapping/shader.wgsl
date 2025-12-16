@@ -5,6 +5,8 @@ struct CameraUniform {
 @group(0) @binding(0) // 1.
 var<uniform> camera: CameraUniform;
 
+@group(1) @binding(1) var gradientTexture: texture_2d<f32>;
+
 
 // Vertex shader
 struct VertexInput {
@@ -29,6 +31,8 @@ fn vs_main(
     out.clip_position = camera.view_proj * vec4<f32>(model.position, 1.0); // 2.
    out.normal = model.normal;
 
+
+
     return out;
 }
 
@@ -37,6 +41,8 @@ fn vs_main(
 // Fragment shader
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    let colorz = textureLoad(gradientTexture, vec2i(in.clip_position.xy), 0).rgb;
+    return vec4<f32>(colorz, 1.0);
     // let color = in.normal * 0.5 + 0.5;
     // let color = in.color * in.normal.x;
 

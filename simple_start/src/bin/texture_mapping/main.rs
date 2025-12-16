@@ -185,9 +185,9 @@ impl LocalState {
         let camera = Camera {
             // position the camera 1 unit up and 2 units back
             // +z is out of the screen
-            eye: (0.0, 1.7, 0.0).into(),
+            eye: (0.0, 1.0, 0.0).into(),
             // have it look at the origin
-            target: (0.0, 6.0, -1.0).into(),
+            target: (0.0, 15.0, -0.5).into(),
             // which way is "up"
             up: Vec3 {
                 x: 0.0,
@@ -226,7 +226,7 @@ impl LocalState {
             // by setting depth to 1.
             depth_or_array_layers: 1,
         };
-        let texture_thing = device.create_texture(&wgpu::TextureDescriptor {
+        let diffuse_texture = device.create_texture(&wgpu::TextureDescriptor {
             size: texture_size,
             mip_level_count: 1, // We'll talk about this a little later
             sample_count: 1,
@@ -236,21 +236,54 @@ impl LocalState {
             label: Some("diffuse_texture"),
             view_formats: &[],
         });
-        let mut pixels = vec![0u8; (texture_size.width * texture_size.height * 4) as usize];
+        let mut diffuse_rgba = vec![0u8; (texture_size.width * texture_size.height * 4) as usize];
         for i in 0..texture_size.width {
             for j in 0..texture_size.height {
                 let offset = 4 * (j as usize * texture_size.width as usize + i as usize);
-                pixels[offset] = i as u8; // r
-                pixels[offset + 1] = j as u8; // g
-                pixels[offset + 2] = 128; // b
-                pixels[offset + 3] = 255; // a
+                diffuse_rgba[offset] = i as u8; // r
+                diffuse_rgba[offset + 1] = j as u8; // g
+                diffuse_rgba[offset + 2] = 128; // b
+                diffuse_rgba[offset + 3] = 255; // a
             }
         }
         use image::{ImageBuffer, Rgba};
-        let buffer =
-            ImageBuffer::<Rgba<u8>, _>::from_raw(texture_size.width, texture_size.height, pixels)
-                .unwrap();
+        let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(
+            texture_size.width,
+            texture_size.height,
+            diffuse_rgba.clone(),
+        )
+        .unwrap();
         buffer.save("/tmp/texture.png").unwrap();
+
+        self.queue.write_texture(
+            // Tells wgpu where to copy the pixel data
+            wgpu::TexelCopyTextureInfo {
+                texture: &diffuse_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            // The actual pixel data
+            &diffuse_rgba,
+            // The layout of the texture
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * texture_size.width),
+                rows_per_image: Some(texture_size.height),
+            },
+            texture_size,
+        );
+        let diffuse_texture_view =
+            diffuse_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let diffuse_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
         // // /Make the texture
 
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
@@ -335,10 +368,49 @@ impl LocalState {
             label: Some("camera_bind_group"),
         });
 
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        // This should match the filterable field of the
+                        // corresponding Texture entry above.
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+                label: Some("camera_bind_group_layout"),
+            });
+        let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&diffuse_texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&diffuse_sampler),
+                },
+            ],
+            label: Some("camera_bind_group"),
+        });
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout],
+                bind_group_layouts: &[&camera_bind_group_layout, &texture_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -431,6 +503,7 @@ impl LocalState {
 
             render_pass.set_pipeline(&render_pipeline);
             render_pass.set_bind_group(0, &camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &texture_bind_group, &[]); // NEW!
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             render_pass.draw_indexed(0..num_indices, 0, 0..1);
