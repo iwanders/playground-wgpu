@@ -33,7 +33,7 @@ impl Vertex {
     }
 }
 
-const VERTICES: [Vertex; 16] = [
+const VERTICES: [Vertex; 4] = [
     // The base
     Vertex::pnc(
         vec3(-0.5, -0.5, -0.3),
@@ -55,78 +55,11 @@ const VERTICES: [Vertex; 16] = [
         vec3(0.0, -1.0, 0.0),
         vec3(1.0, 1.0, 1.0),
     ),
-    // Face sides have their own copy of the vertices
-    // because they have a different normal vector.
-    Vertex::pnc(
-        vec3(-0.5, -0.5, -0.3),
-        vec3(0.0, -0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.5, -0.5, -0.3),
-        vec3(0.0, -0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.0, 0.0, 0.5),
-        vec3(0.0, -0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.5, -0.5, -0.3),
-        vec3(0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.5, 0.5, -0.3),
-        vec3(0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.0, 0.0, 0.5),
-        vec3(0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.5, 0.5, -0.3),
-        vec3(0.0, 0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(-0.5, 0.5, -0.3),
-        vec3(0.0, 0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.0, 0.0, 0.5),
-        vec3(0.0, 0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(-0.5, 0.5, -0.3),
-        vec3(-0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(-0.5, -0.5, -0.3),
-        vec3(-0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.0, 0.0, 0.5),
-        vec3(-0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
 ];
 const INDICES: &[u16] = &[
     // Base
     0, 1, 2, //
     0, 2, 3, //
-    // side
-    4, 5, 6, //
-    7, 8, 9, //
-    10, 11, 12, //
-    13, 14, 15,
 ];
 
 // Attrib has to be in sync with Vertex.
@@ -185,9 +118,9 @@ impl LocalState {
         let camera = Camera {
             // position the camera 1 unit up and 2 units back
             // +z is out of the screen
-            eye: (0.0, 1.0, 0.0).into(),
+            eye: (0.0, 0.0, 0.5).into(),
             // have it look at the origin
-            target: (0.0, 15.0, -0.5).into(),
+            target: (0.0, 0.0, 1.0).into(),
             // which way is "up"
             up: Vec3 {
                 x: 0.0,
