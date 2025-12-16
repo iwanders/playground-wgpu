@@ -6,7 +6,7 @@ struct CameraUniform {
 var<uniform> camera: CameraUniform;
 
 @group(1) @binding(1) var gradientTexture: texture_2d<f32>;
-
+@group(1) @binding(2) var textureSampler: sampler;
 
 // Vertex shader
 struct VertexInput {
@@ -35,7 +35,7 @@ fn vs_main(
     // In plane.obj, the vertex xy coords range from -1 to 1
     // and we remap this to (0, 256), the size of our texture.
     // but our quad is from -0.5 to 0.5... ~and something is rotated :(~ ah my mesh was.
-    out.uv = (model.position.xy + 0.5);
+    out.uv = (model.position.xy + 0.5) * 4.0;
 
 
 
@@ -50,7 +50,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     //let colorz = textureLoad(gradientTexture, vec2i(in.clip_position.xy), 0).rgb;
     //let colorz = textureLoad(gradientTexture, vec2i(in.uv), 0).rgb;
     let texelCoords = vec2i(in.uv * vec2f(textureDimensions(gradientTexture)));
-    let colorz = textureLoad(gradientTexture, texelCoords, 0).rgb;
+    //let colorz = textureLoad(gradientTexture, texelCoords, 0).rgb;
+    let colorz = textureSample(gradientTexture, textureSampler, in.uv).rgb;
     return vec4<f32>(colorz, 1.0);
     // let color = in.normal * 0.5 + 0.5;
     // let color = in.color * in.normal.x;
