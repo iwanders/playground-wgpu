@@ -118,14 +118,14 @@ impl LocalState {
         let camera = Camera {
             // position the camera 1 unit up and 2 units back
             // +z is out of the screen
-            eye: (0.0, 0.0, 0.5).into(),
+            eye: (-0.1, 0.4, 0.6).into(),
             // have it look at the origin
-            target: (0.0, 0.0, 1.0).into(),
+            target: (-0.6, 1.5, 3.0).into(),
             // which way is "up"
             up: Vec3 {
                 x: 0.0,
-                y: 1.0,
-                z: 0.0,
+                y: 0.0,
+                z: 1.0,
             },
             aspect: self.width as f32 / self.height as f32,
             fovy: 90.0,
@@ -173,9 +173,19 @@ impl LocalState {
         for i in 0..texture_size.width {
             for j in 0..texture_size.height {
                 let offset = 4 * (j as usize * texture_size.width as usize + i as usize);
-                diffuse_rgba[offset] = i as u8; // r
-                diffuse_rgba[offset + 1] = j as u8; // g
-                diffuse_rgba[offset + 2] = 128; // b
+                if false {
+                    diffuse_rgba[offset] = i as u8; // r
+                    diffuse_rgba[offset + 1] = j as u8; // g
+                    diffuse_rgba[offset + 2] = 128; // b
+                } else {
+                    diffuse_rgba[offset + 0] = if (i / 16) % 2 == (j / 16) % 2 { 255 } else { 0 }; // r
+                    diffuse_rgba[offset + 1] = if ((i.wrapping_sub(j)) / 16) % 2 == 0 {
+                        255
+                    } else {
+                        0
+                    }; // g
+                    diffuse_rgba[offset + 2] = if ((i + j) / 16) % 2 == 0 { 255 } else { 0 }; // b
+                }
                 diffuse_rgba[offset + 3] = 255; // a
             }
         }

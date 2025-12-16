@@ -19,6 +19,7 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec3<f32>,
     @location(1) normal: vec3<f32>,
+    @location(2) texelCoords: vec2f,
 };
 
 @vertex
@@ -29,7 +30,11 @@ fn vs_main(
     out.color = model.color;
     //out.clip_position = vec4<f32>(model.position.x, model.position.y, model.position.z, 1.0); // A: Yes this is equivalent.
     out.clip_position = camera.view_proj * vec4<f32>(model.position, 1.0); // 2.
-   out.normal = model.normal;
+    out.normal = model.normal;
+    // In plane.obj, the vertex xy coords range from -1 to 1
+    // and we remap this to (0, 256), the size of our texture.
+    // but our quad is from -0.5 to 0.5... and something is rotated :(
+    out.texelCoords = (model.position.xy + 0.5) * 256.0;
 
 
 
@@ -41,7 +46,8 @@ fn vs_main(
 // Fragment shader
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let colorz = textureLoad(gradientTexture, vec2i(in.clip_position.xy), 0).rgb;
+    //let colorz = textureLoad(gradientTexture, vec2i(in.clip_position.xy), 0).rgb;
+    let colorz = textureLoad(gradientTexture, vec2i(in.texelCoords), 0).rgb;
     return vec4<f32>(colorz, 1.0);
     // let color = in.normal * 0.5 + 0.5;
     // let color = in.color * in.normal.x;
