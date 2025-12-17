@@ -118,9 +118,9 @@ impl LocalState {
         let camera = Camera {
             // position the camera 1 unit up and 2 units back
             // +z is out of the screen
-            eye: (-0.1, 0.4, 0.6).into(),
+            eye: (-0.2, 0.7, 0.0).into(),
             // have it look at the origin
-            target: (-0.6, 1.5, 3.0).into(),
+            target: (-0.6, 2.5, 2.5).into(),
             // which way is "up"
             up: Vec3 {
                 x: 0.0,
@@ -162,7 +162,7 @@ impl LocalState {
         };
         let diffuse_texture = device.create_texture(&wgpu::TextureDescriptor {
             size: texture_size,
-            mip_level_count: 1, // We'll talk about this a little later
+            mip_level_count: 2, // We'll talk about this a little later
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
@@ -217,15 +217,96 @@ impl LocalState {
             },
             texture_size,
         );
+        // Write the second MIP level...
+        {
+            let texture_size = wgpu::Extent3d {
+                width: 256 / 2,
+                height: 256 / 2,
+                // All textures are stored as 3D, we represent our 2D texture
+                // by setting depth to 1.
+                depth_or_array_layers: 1,
+            };
+            let previous_level_size = 128;
+            let mut diffuse_rgba_mip1 =
+                vec![0u8; (texture_size.width * texture_size.height * 4) as usize];
+            for i in 0..texture_size.width {
+                for j in 0..texture_size.height {
+                    let offset = 4 * (j as usize * texture_size.width as usize + i as usize);
+                    if false {
+                        diffuse_rgba_mip1[offset] = 0; // r
+                        diffuse_rgba_mip1[offset + 1] = 255; // g
+                        diffuse_rgba_mip1[offset + 2] = 0; // b
+                    } else {
+                        let mut p = [0u16; 4];
+
+                        // Calculate indices for the 4 samples from previous level
+                        let p00_idx = 4 * ((2 * j) * (2 * previous_level_size) + (2 * i)) as usize;
+                        let p01_idx =
+                            4 * ((2 * j) * (2 * previous_level_size) + (2 * i + 1)) as usize;
+                        let p10_idx =
+                            4 * ((2 * j + 1) * (2 * previous_level_size) + (2 * i)) as usize;
+                        let p11_idx =
+                            4 * ((2 * j + 1) * (2 * previous_level_size) + (2 * i + 1)) as usize;
+
+                        // Average the 4 samples (top-left, top-right, bottom-left, bottom-right)
+                        p[0] = (diffuse_rgba[p00_idx] as u16
+                            + diffuse_rgba[p01_idx] as u16
+                            + diffuse_rgba[p10_idx] as u16
+                            + diffuse_rgba[p11_idx] as u16) as u16
+                            / 4;
+                        p[1] = (diffuse_rgba[p00_idx + 1] as u16
+                            + diffuse_rgba[p01_idx + 1] as u16
+                            + diffuse_rgba[p10_idx + 1] as u16
+                            + diffuse_rgba[p11_idx + 1] as u16)
+                            as u16
+                            / 4;
+                        p[2] = (diffuse_rgba[p00_idx + 2] as u16
+                            + diffuse_rgba[p01_idx + 2] as u16
+                            + diffuse_rgba[p10_idx + 2] as u16
+                            + diffuse_rgba[p11_idx + 2] as u16)
+                            as u16
+                            / 4;
+                        p[3] = 255;
+
+                        // Place the averaged pixel
+                        for k in 0..4 {
+                            diffuse_rgba_mip1[offset + k] = p[k] as u8;
+                        }
+                    }
+                    diffuse_rgba_mip1[offset + 3] = 255; // a
+                }
+            }
+            self.queue.write_texture(
+                // Tells wgpu where to copy the pixel data
+                wgpu::TexelCopyTextureInfo {
+                    texture: &diffuse_texture,
+                    mip_level: 1,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                // The actual pixel data
+                &diffuse_rgba_mip1,
+                // The layout of the texture
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * texture_size.width),
+                    rows_per_image: Some(texture_size.height),
+                },
+                texture_size,
+            );
+        }
+
         let diffuse_texture_view =
             diffuse_texture.create_view(&wgpu::TextureViewDescriptor::default());
         let diffuse_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_u: wgpu::AddressMode::ClampToEdge, // Repeat, MirrorRepeat, ClampToEdge
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mag_filter: wgpu::FilterMode::Linear, // Nearest
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 5.0,
             ..Default::default()
         });
         // // /Make the texture

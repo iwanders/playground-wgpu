@@ -35,7 +35,7 @@ fn vs_main(
     // In plane.obj, the vertex xy coords range from -1 to 1
     // and we remap this to (0, 256), the size of our texture.
     // but our quad is from -0.5 to 0.5... ~and something is rotated :(~ ah my mesh was.
-    out.uv = (model.position.xy + 0.5) * 4.0;
+    out.uv = (model.position.xy + 0.5)  ;
 
 
 
