@@ -214,6 +214,41 @@ impl State {
             .save(p)
             .with_context(|| format!("failed to save to {p:?}"))
     }
+
+    pub fn update(&mut self) {
+        self.camera.update();
+    }
+
+    pub fn handle_key(&mut self, key: KeyCode, pressed: bool) -> bool {
+        let amount = if pressed { 1.0 } else { 0.0 };
+        match key {
+            KeyCode::KeyW => {
+                self.camera.amount_forward = amount;
+                true
+            }
+            KeyCode::KeyS => {
+                self.camera.amount_backward = amount;
+                true
+            }
+            KeyCode::KeyA => {
+                self.camera.amount_left = amount;
+                true
+            }
+            KeyCode::KeyD => {
+                self.camera.amount_right = amount;
+                true
+            }
+            KeyCode::KeyE => {
+                self.camera.amount_up = amount;
+                true
+            }
+            KeyCode::KeyQ => {
+                self.camera.amount_down = amount;
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 pub fn get_current_time_f64() -> f64 {
@@ -236,6 +271,13 @@ pub struct Camera {
     pub fovy: f32,
     pub znear: f32,
     pub zfar: f32,
+
+    pub amount_forward: f32,
+    pub amount_backward: f32,
+    pub amount_left: f32,
+    pub amount_right: f32,
+    pub amount_up: f32,
+    pub amount_down: f32,
 }
 impl Camera {
     pub fn new(width: u32, height: u32) -> Self {
@@ -255,6 +297,12 @@ impl Camera {
             fovy: 90.0,
             znear: 0.001,
             zfar: 1000.0,
+            amount_forward: 0.0,
+            amount_backward: 0.0,
+            amount_left: 0.0,
+            amount_right: 0.0,
+            amount_up: 0.0,
+            amount_down: 0.0,
         }
     }
     fn build_view_projection_matrix(&self) -> Mat4 {
@@ -268,6 +316,12 @@ impl Camera {
         CameraUniform {
             view_proj: self.build_view_projection_matrix(),
         }
+    }
+    pub fn update(&mut self) {
+        let s = 0.1;
+        self.eye.z += (self.amount_up - self.amount_down) * s;
+        self.eye.x += (self.amount_left - self.amount_right) * s;
+        self.eye.y += (self.amount_forward - self.amount_backward) * s;
     }
 }
 // That means that in normalized device coordinates (opens new window), the x-axis and y-axis are in the range of -1.0 to +1.0, and the z-axis is 0.0 to +1.0.
@@ -352,6 +406,8 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
         let mut drawable = self.drawable.borrow_mut();
         let drawable = &mut *drawable;
 
+        state.update();
+
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => state.resize(size.width, size.height),
@@ -384,8 +440,7 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
                     },
                 ..
             } => {
-                // state.handle_key(event_loop, code, key_state.is_pressed())
-                todo!()
+                let _ = state.handle_key(code, key_state.is_pressed());
             }
             _ => {}
         }

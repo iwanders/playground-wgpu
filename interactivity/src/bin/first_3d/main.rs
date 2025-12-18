@@ -190,24 +190,7 @@ impl simple_start::Drawable for LocalState {
         if !state.is_surface_configured {
             return Err(wgpu::SurfaceError::Lost);
         }
-        let camera = Camera {
-            // position the camera 1 unit up and 2 units back
-            // +z is out of the screen
-            eye: (0.0, 1.7, 0.0).into(),
-            // have it look at the origin
-            target: (0.0, 6.0, -1.0).into(),
-            // which way is "up"
-            up: Vec3 {
-                x: 0.0,
-                y: 1.0,
-                z: 0.0,
-            },
-            aspect: self.width as f32 / self.height as f32,
-            fovy: 90.0,
-            znear: 0.001,
-            zfar: 1000.0,
-        };
-        let camera_uniform = camera.to_uniform();
+        let camera_uniform = state.camera.to_uniform();
         warn!("camera_uniform: {camera_uniform:?}");
 
         // Something something... fragment shader... set colors? >_<
@@ -496,8 +479,8 @@ async fn async_main() -> std::result::Result<(), anyhow::Error> {
 pub fn main() -> std::result::Result<(), anyhow::Error> {
     env_logger::builder()
         .is_test(false)
-        // .filter_level(log::LevelFilter::Warn)
-        .filter_level(log::LevelFilter::max())
+        .filter_level(log::LevelFilter::Info)
+        // .filter_level(log::LevelFilter::max())
         .try_init()?;
     pollster::block_on(async_main())?;
     println!("Hello, world! ");
