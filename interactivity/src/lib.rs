@@ -17,7 +17,7 @@ use zerocopy::{Immutable, IntoBytes};
 
 pub struct State {
     // instance: wgpu::Instance,
-    // surface: wgpu::Surface<'static>,
+    pub surface: Option<wgpu::Surface<'static>>,
     //pub surface: wgpu::Surface<'static>,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
@@ -28,6 +28,7 @@ pub struct State {
     pub height: u32,
     pub window: Option<Arc<Window>>,
     pub camera: Camera,
+    pub config: wgpu::SurfaceConfiguration,
 }
 impl State {
     async fn new_window(window: Arc<Window>) -> anyhow::Result<State> {
@@ -46,32 +47,47 @@ impl State {
                 force_fallback_adapter: false,
             })
             .await?;
-        Self::new_full(size.width, size.height, Some(adapter), Some(window)).await
+        Self::new_full(
+            size.width,
+            size.height,
+            Some(adapter),
+            Some(window),
+            Some(surface),
+        )
+        .await
     }
     pub async fn new_sized(width: u32, height: u32) -> anyhow::Result<State> {
-        Self::new_full(width, height, None, None).await
+        Self::new_full(width, height, None, None, None).await
     }
     pub async fn new_full(
         width: u32,
         height: u32,
         adapter: Option<wgpu::Adapter>,
         window: Option<Arc<Window>>,
+        surface: Option<wgpu::Surface<'static>>,
     ) -> anyhow::Result<State> {
         // The instance is a handle to our GPU
         // BackendBit::PRIMARY => Vulkan + Metal + DX12 + Browser WebGPU
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::PRIMARY,
+        let adapter = adapter.unwrap_or_else(|| {
+            pollster::block_on((async || {
+                let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+                    backends: wgpu::Backends::PRIMARY,
 
-            ..Default::default()
+                    ..Default::default()
+                });
+
+                let adapter = instance
+                    .request_adapter(&wgpu::RequestAdapterOptions {
+                        power_preference: wgpu::PowerPreference::default(),
+                        compatible_surface: None,
+                        force_fallback_adapter: false,
+                    })
+                    .await
+                    .unwrap();
+                adapter
+            })())
         });
 
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                compatible_surface: None,
-                force_fallback_adapter: false,
-            })
-            .await?;
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
@@ -88,6 +104,36 @@ impl State {
         // let present_mode = wgpu::PresentMode::AutoNoVsync;
         // let alpha_mode = wgpu::CompositeAlphaMode::Auto;
 
+        let (texture_format, present_mode, alpha_mode) = surface
+            .as_ref()
+            .map(|s| {
+                let surface_caps = s.get_capabilities(&adapter);
+                (
+                    surface_caps
+                        .formats
+                        .iter()
+                        .copied()
+                        .find(|f| f.is_srgb())
+                        .unwrap_or(surface_caps.formats[0]),
+                    surface_caps.present_modes[0],
+                    surface_caps.alpha_modes[0],
+                )
+            })
+            .unwrap_or((
+                wgpu::TextureFormat::Rgba8UnormSrgb,
+                wgpu::PresentMode::AutoNoVsync,
+                wgpu::CompositeAlphaMode::Auto,
+            ));
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: texture_format,
+            width: width,
+            height: height,
+            present_mode,
+            alpha_mode,
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
         let texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
                 width,
@@ -97,7 +143,7 @@ impl State {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: texture_format,
             usage: wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::RENDER_ATTACHMENT,
             label: None,
             view_formats: &[],
@@ -115,6 +161,7 @@ impl State {
         };
         let buffer = device.create_buffer(&output_buffer_desc);
         Ok(State {
+            surface,
             device,
             queue,
             // instance,
@@ -124,6 +171,7 @@ impl State {
             texture,
             texture_view,
             window,
+            config,
             camera: Camera::new(width, height),
         })
     }
@@ -132,7 +180,12 @@ impl State {
         if width > 0 && height > 0 {
             self.width = width;
             self.height = height;
+            self.config.width = width;
+            self.config.height = height;
             self.camera.aspect = self.width as f32 / self.height as f32;
+            if let Some(surface) = self.surface.as_ref() {
+                surface.configure(&self.device, &self.config);
+            }
         }
     }
     pub async fn save<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
@@ -172,14 +225,14 @@ pub fn get_angle_f32(rate: f32) -> f32 {
     (crate::get_current_time_f64() * rate as f64).rem_euclid(2.0 * std::f64::consts::PI) as f32
 }
 
-struct Camera {
-    eye: Vec3,
-    target: Vec3,
-    up: Vec3,
-    aspect: f32,
-    fovy: f32,
-    znear: f32,
-    zfar: f32,
+pub struct Camera {
+    pub eye: Vec3,
+    pub target: Vec3,
+    pub up: Vec3,
+    pub aspect: f32,
+    pub fovy: f32,
+    pub znear: f32,
+    pub zfar: f32,
 }
 impl Camera {
     pub fn new(width: u32, height: u32) -> Self {
@@ -320,20 +373,20 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
     }
 }
 
-async fn async_main() -> std::result::Result<(), anyhow::Error> {
+pub async fn async_main(drawable: impl Drawable) -> std::result::Result<(), anyhow::Error> {
     let event_loop = EventLoop::with_user_event().build()?;
-    let mut app = App::new(DummyDraw);
+    let mut app = App::new(drawable);
     event_loop.run_app(&mut app)?;
 
     Ok(())
 }
-pub fn run() -> anyhow::Result<()> {
+pub fn run(drawable: impl Drawable) -> anyhow::Result<()> {
     env_logger::builder()
         .is_test(false)
         .filter_level(log::LevelFilter::Warn)
         // .filter_level(log::LevelFilter::max())
         .try_init()?;
-    pollster::block_on(async_main())?;
+    pollster::block_on(async_main(drawable))?;
 
     Ok(())
 }
