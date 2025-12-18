@@ -284,9 +284,9 @@ impl Camera {
         Camera {
             // position the camera 1 unit up and 2 units back
             // +z is out of the screen
-            eye: (0.0, 1.7, 0.0).into(),
+            eye: (0.0, -0.1, 1.3).into(),
             // have it look at the origin
-            target: (0.0, 6.0, -1.0).into(),
+            target: (0.0, 0.0, 0.0).into(),
             // which way is "up"
             up: Vec3 {
                 x: 0.0,
@@ -306,10 +306,18 @@ impl Camera {
         }
     }
     fn build_view_projection_matrix(&self) -> Mat4 {
-        let view = Mat4::look_at_rh(self.eye, self.target, self.up);
-        let proj = Mat4::perspective_lh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
+        // https://github.com/bitshifter/glam-rs/issues/569
+        // Okay, so this doesn't actually do what we need :<
+        //let view = Mat4::look_at_rh(self.eye, self.target, self.up);
+        let proj = Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
 
-        // 3. I dropped the opengl matrix that precded this multiplication.
+        info!("eye: {:?}", self.eye);
+        // https://github.com/eliemichel/LearnWebGPU-Code/blob/5673b2b34edfdeff4232e1d824d1801ce11acb8b/main.cpp#L334
+        let focal_point = self.eye;
+        let t2 = Mat4::from_translation(-focal_point);
+        let angle2 = f32::to_radians(30.0);
+        let r2 = Mat4::IDENTITY * Mat4::from_rotation_z(-angle2);
+        let view = t2 * r2;
         return proj * view;
     }
     pub fn to_uniform(&self) -> CameraUniform {
