@@ -157,7 +157,7 @@ impl State {
         let output_buffer_desc = wgpu::BufferDescriptor {
             size: output_buffer_size,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            label: None,
+            label: Some("capture_buffer"),
             mapped_at_creation: false,
         };
         let buffer = device.create_buffer(&output_buffer_desc);
@@ -313,6 +313,22 @@ impl<T: Drawable> App<T> {
             drawable: drawable.into(),
         }
     }
+    pub async fn new_sized(drawable: T, width: u32, height: u32) -> Self {
+        Self {
+            state: Some(State::new_sized(width, height).await.unwrap()),
+            drawable: drawable.into(),
+        }
+    }
+    pub async fn render_to_surface(&mut self) {
+        let state = match &mut self.state {
+            Some(canvas) => canvas,
+            None => return,
+        };
+        let mut drawable = self.drawable.borrow_mut();
+        let drawable = &mut *drawable;
+        state.is_surface_configured = true;
+        drawable.render(state).unwrap()
+    }
 }
 
 impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
@@ -380,9 +396,24 @@ pub async fn async_main(drawable: impl Drawable) -> std::result::Result<(), anyh
     let event_loop = EventLoop::with_user_event().build()?;
     let mut app = App::new(drawable);
     event_loop.run_app(&mut app)?;
+    Ok(())
+}
+pub async fn async_render<P: AsRef<Path>>(
+    drawable: impl Drawable,
+    width: u32,
+    height: u32,
+    path: P,
+) -> std::result::Result<(), anyhow::Error> {
+    let p: &Path = path.as_ref();
+    let mut app = App::new_sized(drawable, width, height).await;
+    app.render_to_surface().await;
+    if let Some(state) = app.state.as_ref() {
+        state.save(path).await?;
+    }
 
     Ok(())
 }
+
 pub fn run(drawable: impl Drawable) -> anyhow::Result<()> {
     env_logger::builder()
         .is_test(false)
