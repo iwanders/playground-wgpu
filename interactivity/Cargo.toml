@@ -1,0 +1,19 @@
+[package]
+name = "simple_start"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+
+anyhow = "1.0"
+winit =  "0.30"
+env_logger = "0.10"
+log = "0.4"
+wgpu = "27.0.0"
+pollster = "0.3"
+image = {version="0.25.9", default-features=false, features=["png"]}
+futures-intrusive = "0.5.0"
+zerocopy = "0.8"
+zerocopy-derive = "0.8"
+glam = {version="0.30.9", features=["zerocopy"]}
