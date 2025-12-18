@@ -29,6 +29,7 @@ pub struct State {
     pub window: Option<Arc<Window>>,
     pub camera: Camera,
     pub config: wgpu::SurfaceConfiguration,
+    pub is_surface_configured: bool,
 }
 impl State {
     async fn new_window(window: Arc<Window>) -> anyhow::Result<State> {
@@ -173,6 +174,7 @@ impl State {
             window,
             config,
             camera: Camera::new(width, height),
+            is_surface_configured: false,
         })
     }
 
@@ -185,6 +187,7 @@ impl State {
             self.camera.aspect = self.width as f32 / self.height as f32;
             if let Some(surface) = self.surface.as_ref() {
                 surface.configure(&self.device, &self.config);
+                self.is_surface_configured = true;
             }
         }
     }
