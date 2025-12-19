@@ -327,7 +327,6 @@ impl Camera {
             self.eye.y += (self.amount_forward - self.amount_backward) * s;
         } else {
             let s = 0.05;
-            info!("up: {:?}, {:?}", self.amount_up, self.amount_down);
             // something something, polar coordinates.
             let target_to_camera = self.eye;
             // Go from left hand to right hand...
@@ -337,9 +336,10 @@ impl Camera {
             let magnitude = target_to_camera.length();
             let mut theta = glam::vec2(x, y).length().atan2(z);
             let mut phi = y.atan2(x);
-            let rho = magnitude;
+            let mut rho = magnitude;
             theta += (self.amount_up - self.amount_down) * s;
-            phi += (self.amount_left - self.amount_right) * s;
+            phi -= (self.amount_left - self.amount_right) * s;
+            rho -= (self.amount_forward - self.amount_backward) * s;
 
             let new_eye_x = rho * theta.sin() * phi.cos();
             let new_eye_y = rho * theta.sin() * phi.sin();
@@ -347,7 +347,6 @@ impl Camera {
 
             // Don't forget the flip back!
             let new_eye = vec3(new_eye_x, new_eye_y, -new_eye_z);
-            info!("old eye; {:?} new eye: {:?}", self.eye, new_eye);
             self.eye = new_eye;
         }
     }
