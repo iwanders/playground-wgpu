@@ -290,8 +290,8 @@ impl Camera {
             // which way is "up"
             up: Vec3 {
                 x: 0.0,
-                y: 1.0,
-                z: 0.0,
+                y: 0.0,
+                z: 1.0,
             },
             aspect: width as f32 / height as f32,
             fovy: 90.0,
@@ -310,14 +310,7 @@ impl Camera {
         // Okay, so this doesn't actually do what we need :<
         //let view = Mat4::look_at_rh(self.eye, self.target, self.up);
         let proj = Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
-
-        info!("eye: {:?}", self.eye);
-        // https://github.com/eliemichel/LearnWebGPU-Code/blob/5673b2b34edfdeff4232e1d824d1801ce11acb8b/main.cpp#L334
-        let focal_point = self.eye;
-        let t2 = Mat4::from_translation(-focal_point);
-        let angle2 = f32::to_radians(30.0);
-        let r2 = Mat4::IDENTITY * Mat4::from_rotation_z(-angle2);
-        let view = t2 * r2;
+        let view = Mat4::look_at_rh(self.eye, self.target, self.up);
         return proj * view;
     }
     pub fn to_uniform(&self) -> CameraUniform {
@@ -326,10 +319,37 @@ impl Camera {
         }
     }
     pub fn update(&mut self) {
-        let s = 0.1;
-        self.eye.z += (self.amount_up - self.amount_down) * s;
-        self.eye.x += (self.amount_left - self.amount_right) * s;
-        self.eye.y += (self.amount_forward - self.amount_backward) * s;
+        const CARTESIAN: bool = false;
+        if CARTESIAN {
+            let s = 0.1;
+            self.eye.z += (self.amount_up - self.amount_down) * s;
+            self.eye.x += (self.amount_left - self.amount_right) * s;
+            self.eye.y += (self.amount_forward - self.amount_backward) * s;
+        } else {
+            let s = 0.05;
+            info!("up: {:?}, {:?}", self.amount_up, self.amount_down);
+            // something something, polar coordinates.
+            let target_to_camera = self.eye;
+            // Go from left hand to right hand...
+            let x = target_to_camera.x;
+            let y = target_to_camera.y;
+            let z = -target_to_camera.z;
+            let magnitude = target_to_camera.length();
+            let mut theta = glam::vec2(x, y).length().atan2(z);
+            let mut phi = y.atan2(x);
+            let rho = magnitude;
+            theta += (self.amount_up - self.amount_down) * s;
+            phi += (self.amount_left - self.amount_right) * s;
+
+            let new_eye_x = rho * theta.sin() * phi.cos();
+            let new_eye_y = rho * theta.sin() * phi.sin();
+            let new_eye_z = rho * theta.cos();
+
+            // Don't forget the flip back!
+            let new_eye = vec3(new_eye_x, new_eye_y, -new_eye_z);
+            info!("old eye; {:?} new eye: {:?}", self.eye, new_eye);
+            self.eye = new_eye;
+        }
     }
 }
 // That means that in normalized device coordinates (opens new window), the x-axis and y-axis are in the range of -1.0 to +1.0, and the z-axis is 0.0 to +1.0.
