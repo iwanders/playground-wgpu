@@ -1,3 +1,4 @@
+use anyhow::Context;
 use glam::{Mat4, Vec3, vec3};
 use log::*;
 use simple_start::State;
@@ -146,6 +147,9 @@ impl LocalState {
     }
 }
 impl simple_start::Drawable for LocalState {
+    fn initialise(&mut self, state: &mut State) {
+        state.camera.eye = vec3(0.6, -0.71, 0.904);
+    }
     fn render(&mut self, state: &mut State) -> Result<(), wgpu::SurfaceError> {
         state.window.as_ref().map(|k| k.request_redraw());
 
@@ -195,23 +199,6 @@ impl simple_start::Drawable for LocalState {
         let depth_texture = device.create_texture(&depth_desc);
 
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        /*
-        // We only need the depth sampler for sampling textures.
-        let depth_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            // 4.
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            compare: Some(wgpu::CompareFunction::LessEqual), // 5.
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 100.0,
-            ..Default::default()
-        });
-
-        */
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
@@ -226,11 +213,6 @@ impl simple_start::Drawable for LocalState {
         let num_indices = INDICES.len() as u32;
 
         let texture_format = state.texture_view.texture().format();
-        let extent = wgpu::Extent3d {
-            width: state.width,
-            height: state.height,
-            depth_or_array_layers: 1,
-        };
 
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -316,6 +298,7 @@ impl simple_start::Drawable for LocalState {
             cache: None,
         });
 
+        #[allow(unused_assignments)]
         let mut viewthing = None;
         let mut surface_texture = None;
         let view = if let Some(surface) = state.surface.as_ref() {
@@ -374,55 +357,15 @@ impl simple_start::Drawable for LocalState {
             render_pass.draw(0..3, 0..1);
         }
 
-        if state.surface.is_none() {
-            encoder.copy_texture_to_buffer(
-                wgpu::TexelCopyTextureInfo {
-                    aspect: wgpu::TextureAspect::All,
-                    texture: &state.texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                },
-                wgpu::TexelCopyBufferInfo {
-                    buffer: &state.buffer,
-                    layout: wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(state.width * std::mem::size_of::<u32>() as u32),
-                        rows_per_image: Some(state.width),
-                    },
-                },
-                extent,
-            );
-        }
         info!("running queue");
-
+        state
+            .add_screenshot_to_encoder(&mut encoder)
+            .with_context(|| "adding screenshot to encoder failed")
+            .unwrap();
         state.queue.submit(Some(encoder.finish()));
 
         // And copy from the surface to the window canvas.
-        /**/
         if let Some(output) = surface_texture {
-            /*
-            let mut encoder =
-                device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-            encoder.copy_texture_to_texture(
-                wgpu::TexelCopyTextureInfo {
-                    aspect: wgpu::TextureAspect::All,
-                    texture: &state.texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                },
-                wgpu::TexelCopyTextureInfo {
-                    aspect: wgpu::TextureAspect::All,
-                    texture: &output.texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                },
-                wgpu::Extent3d {
-                    width: output.texture.width(),
-                    height: output.texture.height(),
-                    depth_or_array_layers: output.texture.depth_or_array_layers(),
-                },
-            );
-            state.queue.submit(Some(encoder.finish()));*/
             output.present();
         }
         Ok(())

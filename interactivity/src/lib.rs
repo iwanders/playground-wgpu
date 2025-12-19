@@ -253,6 +253,38 @@ impl State {
             _ => false,
         }
     }
+
+    pub fn add_screenshot_to_encoder(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+    ) -> Result<(), anyhow::Error> {
+        if self.surface.is_none() {
+            let extent = wgpu::Extent3d {
+                // 2.
+                width: self.width.max(1),
+                height: self.height.max(1),
+                depth_or_array_layers: 1,
+            };
+            encoder.copy_texture_to_buffer(
+                wgpu::TexelCopyTextureInfo {
+                    aspect: wgpu::TextureAspect::All,
+                    texture: &self.texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                },
+                wgpu::TexelCopyBufferInfo {
+                    buffer: &self.buffer,
+                    layout: wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(self.width * std::mem::size_of::<u32>() as u32),
+                        rows_per_image: Some(self.width),
+                    },
+                },
+                extent,
+            );
+        }
+        Ok(())
+    }
 }
 
 pub fn get_current_time_f64() -> f64 {
@@ -267,6 +299,7 @@ pub fn get_angle_f32(rate: f32) -> f32 {
     (crate::get_current_time_f64() * rate as f64).rem_euclid(2.0 * std::f64::consts::PI) as f32
 }
 
+#[derive(Copy, Clone, Debug)]
 pub struct Camera {
     pub eye: Vec3,
     pub target: Vec3,
@@ -313,6 +346,7 @@ impl Camera {
         // https://github.com/bitshifter/glam-rs/issues/569
         // Okay, so this doesn't actually do what we need :<
         //let view = Mat4::look_at_rh(self.eye, self.target, self.up);
+        info!("self: {:?}", self);
         let proj = Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
         let view = Mat4::look_at_rh(self.eye, self.target, self.up);
         return proj * view;
@@ -389,6 +423,7 @@ use std::sync::Arc;
 
 pub trait Drawable {
     fn render(&mut self, state: &mut State) -> Result<(), wgpu::SurfaceError>;
+    fn initialise(&mut self, state: &mut State);
 }
 
 pub struct DummyDraw;
@@ -397,6 +432,7 @@ impl Drawable for DummyDraw {
         let _ = state;
         Ok(())
     }
+    fn initialise(&mut self, state: &mut State) {}
 }
 
 pub struct App<T: Drawable> {
@@ -411,9 +447,11 @@ impl<T: Drawable> App<T> {
             drawable: drawable.into(),
         }
     }
-    pub async fn new_sized(drawable: T, width: u32, height: u32) -> Self {
+    pub async fn new_sized(mut drawable: T, width: u32, height: u32) -> Self {
+        let mut state = State::new_sized(width, height).await.unwrap();
+        drawable.initialise(&mut state);
         Self {
-            state: Some(State::new_sized(width, height).await.unwrap()),
+            state: Some(state),
             drawable: drawable.into(),
         }
     }
@@ -435,6 +473,9 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
         let mut window_attributes = Window::default_attributes();
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.state = Some(pollster::block_on(State::new_window(window)).unwrap());
+        self.drawable
+            .borrow_mut()
+            .initialise(self.state.as_mut().unwrap())
     }
 
     fn window_event(
@@ -453,7 +494,6 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
 
         state.update();
 
-        info!("event: {event:?}");
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => state.resize(size.width, size.height),
