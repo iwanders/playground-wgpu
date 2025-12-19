@@ -9,15 +9,6 @@ use wgpu::util::DeviceExt;
 
 // https://eliemichel.github.io/LearnWebGPU/basic-3d-rendering/3d-meshes/a-simple-example.html
 
-struct LocalState {
-    width: u32,
-    height: u32,
-}
-impl LocalState {
-    pub fn new(width: u32, height: u32) -> Self {
-        Self { width, height }
-    }
-}
 use zerocopy::{Immutable, IntoBytes};
 #[repr(C)]
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
@@ -148,40 +139,12 @@ impl Vertex {
     }
 }
 
-struct Camera {
-    eye: Vec3,
-    target: Vec3,
-    up: Vec3,
-    aspect: f32,
-    fovy: f32,
-    znear: f32,
-    zfar: f32,
-}
-impl Camera {
-    fn build_view_projection_matrix(&self) -> Mat4 {
-        let view = Mat4::look_at_rh(self.eye, self.target, self.up);
-        let proj = Mat4::perspective_lh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
-
-        // 3. I dropped the opengl matrix that precded this multiplication.
-        return proj * view;
-    }
-    pub fn to_uniform(&self) -> CameraUniform {
-        CameraUniform {
-            view_proj: self.build_view_projection_matrix(),
-        }
+struct LocalState {}
+impl LocalState {
+    pub fn new() -> Self {
+        Self {}
     }
 }
-// That means that in normalized device coordinates (opens new window), the x-axis and y-axis are in the range of -1.0 to +1.0, and the z-axis is 0.0 to +1.0.
-
-#[repr(C)]
-// This is so we can store this in a buffer
-#[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
-struct CameraUniform {
-    // ~We can't use cgmath with bytemuck directly, so we'll have~
-    // we use glam so we can.
-    view_proj: Mat4,
-}
-
 impl simple_start::Drawable for LocalState {
     fn render(&mut self, state: &mut State) -> Result<(), wgpu::SurfaceError> {
         state.window.as_ref().map(|k| k.request_redraw());
@@ -214,8 +177,8 @@ impl simple_start::Drawable for LocalState {
 
         let depth_size = wgpu::Extent3d {
             // 2.
-            width: self.width.max(1),
-            height: self.height.max(1),
+            width: state.width.max(1),
+            height: state.height.max(1),
             depth_or_array_layers: 1,
         };
         let depth_desc = wgpu::TextureDescriptor {
@@ -264,8 +227,8 @@ impl simple_start::Drawable for LocalState {
 
         let texture_format = state.texture_view.texture().format();
         let extent = wgpu::Extent3d {
-            width: self.width,
-            height: self.height,
+            width: state.width,
+            height: state.height,
             depth_or_array_layers: 1,
         };
 
@@ -423,8 +386,8 @@ impl simple_start::Drawable for LocalState {
                     buffer: &state.buffer,
                     layout: wgpu::TexelCopyBufferLayout {
                         offset: 0,
-                        bytes_per_row: Some(self.width * std::mem::size_of::<u32>() as u32),
-                        rows_per_image: Some(self.width),
+                        bytes_per_row: Some(state.width * std::mem::size_of::<u32>() as u32),
+                        rows_per_image: Some(state.width),
                     },
                 },
                 extent,
@@ -467,11 +430,11 @@ impl simple_start::Drawable for LocalState {
 }
 async fn async_main() -> std::result::Result<(), anyhow::Error> {
     if true {
-        let drawable = LocalState::new(1024, 768);
+        let drawable = LocalState::new();
         simple_start::async_render(drawable, 1024, 768, "/tmp/first_3d.png").await?;
     }
-    let drawable = LocalState::new(800, 600);
-    simple_start::async_main(drawable).await;
+    let drawable = LocalState::new();
+    simple_start::async_main(drawable).await?;
 
     Ok(())
 }

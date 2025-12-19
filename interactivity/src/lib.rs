@@ -394,6 +394,7 @@ pub trait Drawable {
 pub struct DummyDraw;
 impl Drawable for DummyDraw {
     fn render(&mut self, state: &mut State) -> Result<(), wgpu::SurfaceError> {
+        let _ = state;
         Ok(())
     }
 }
@@ -442,6 +443,7 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
         window_id: winit::window::WindowId,
         event: WindowEvent,
     ) {
+        let _ = window_id;
         let state = match &mut self.state {
             Some(canvas) => canvas,
             None => return,
