@@ -30,6 +30,8 @@ pub struct State {
     pub camera: Camera,
     pub config: wgpu::SurfaceConfiguration,
     pub is_surface_configured: bool,
+    pub mouse_left_down: bool,
+    pub mouse_position: winit::dpi::PhysicalPosition<f64>,
 }
 impl State {
     async fn new_window(window: Arc<Window>) -> anyhow::Result<State> {
@@ -175,6 +177,8 @@ impl State {
             config,
             camera: Camera::new(width, height),
             is_surface_configured: false,
+            mouse_left_down: false,
+            mouse_position: Default::default(),
         })
     }
 
@@ -318,6 +322,35 @@ impl Camera {
             view_proj: self.build_view_projection_matrix(),
         }
     }
+
+    pub fn orbit_delta(&mut self, delta_horizontal: f32, delta_vertical: f32, delta_distance: f32) {
+        // something something, polar coordinates.
+        let target_to_camera = self.eye;
+
+        // Go from left hand to right hand...
+        let x = target_to_camera.x;
+        let y = target_to_camera.y;
+        let z = -target_to_camera.z;
+        // Go to polar coordinates
+        let magnitude = target_to_camera.length();
+        let mut theta = glam::vec2(x, y).length().atan2(z);
+        let mut phi = y.atan2(x);
+        let mut rho = magnitude;
+
+        // Perform the changes.
+        theta += delta_vertical;
+        phi += delta_horizontal;
+        rho += delta_distance;
+
+        // Back to cartesian
+        let new_eye_x = rho * theta.sin() * phi.cos();
+        let new_eye_y = rho * theta.sin() * phi.sin();
+        let new_eye_z = rho * theta.cos();
+
+        // Don't forget the flip back between the left and rh coordinate frames.
+        let new_eye = vec3(new_eye_x, new_eye_y, -new_eye_z);
+        self.eye = new_eye;
+    }
     pub fn update(&mut self) {
         const CARTESIAN: bool = false;
         if CARTESIAN {
@@ -327,27 +360,10 @@ impl Camera {
             self.eye.y += (self.amount_forward - self.amount_backward) * s;
         } else {
             let s = 0.05;
-            // something something, polar coordinates.
-            let target_to_camera = self.eye;
-            // Go from left hand to right hand...
-            let x = target_to_camera.x;
-            let y = target_to_camera.y;
-            let z = -target_to_camera.z;
-            let magnitude = target_to_camera.length();
-            let mut theta = glam::vec2(x, y).length().atan2(z);
-            let mut phi = y.atan2(x);
-            let mut rho = magnitude;
-            theta += (self.amount_up - self.amount_down) * s;
-            phi -= (self.amount_left - self.amount_right) * s;
-            rho -= (self.amount_forward - self.amount_backward) * s;
-
-            let new_eye_x = rho * theta.sin() * phi.cos();
-            let new_eye_y = rho * theta.sin() * phi.sin();
-            let new_eye_z = rho * theta.cos();
-
-            // Don't forget the flip back!
-            let new_eye = vec3(new_eye_x, new_eye_y, -new_eye_z);
-            self.eye = new_eye;
+            let delta_vertical = (self.amount_up - self.amount_down) * s;
+            let delta_horizontal = -(self.amount_left - self.amount_right) * s;
+            let delta_distance = -(self.amount_forward - self.amount_backward) * s;
+            self.orbit_delta(delta_horizontal, delta_vertical, delta_distance);
         }
     }
 }
@@ -435,6 +451,7 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
 
         state.update();
 
+        info!("event: {event:?}");
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => state.resize(size.width, size.height),
@@ -453,11 +470,29 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
                     }
                 }
             }
-            WindowEvent::MouseInput { state, button, .. } => match (button, state.is_pressed()) {
-                (MouseButton::Left, true) => {}
-                (MouseButton::Left, false) => {}
+            WindowEvent::MouseInput {
+                state: button_state,
+                button,
+                ..
+            } => match (button, button_state.is_pressed()) {
+                (MouseButton::Left, v) => state.mouse_left_down = v,
                 _ => {}
             },
+            WindowEvent::CursorMoved { position, .. } => {
+                if state.mouse_left_down {
+                    let s = (std::f32::consts::PI / 1920.0) * 2.0;
+                    let dx = (position.x - state.mouse_position.x) as f32 * s;
+                    let dy = (position.y - state.mouse_position.y) as f32 * s;
+                    state.camera.orbit_delta(-dx, dy, 0.0);
+                }
+                state.mouse_position = position;
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let s = -0.1;
+                if let winit::event::MouseScrollDelta::LineDelta(_horizontal, vertical) = delta {
+                    state.camera.orbit_delta(0.0, 0.0, s * vertical);
+                }
+            }
             WindowEvent::KeyboardInput {
                 event:
                     KeyEvent {
