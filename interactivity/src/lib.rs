@@ -423,7 +423,7 @@ use std::sync::Arc;
 
 pub trait Drawable {
     fn render(&mut self, state: &mut State) -> Result<(), wgpu::SurfaceError>;
-    fn initialise(&mut self, state: &mut State);
+    fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error>;
 }
 
 pub struct DummyDraw;
@@ -432,7 +432,10 @@ impl Drawable for DummyDraw {
         let _ = state;
         Ok(())
     }
-    fn initialise(&mut self, state: &mut State) {}
+    fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error> {
+        let _ = state;
+        Ok(())
+    }
 }
 
 pub struct App<T: Drawable> {
@@ -449,7 +452,7 @@ impl<T: Drawable> App<T> {
     }
     pub async fn new_sized(mut drawable: T, width: u32, height: u32) -> Self {
         let mut state = State::new_sized(width, height).await.unwrap();
-        drawable.initialise(&mut state);
+        drawable.initialise(&mut state).unwrap();
         Self {
             state: Some(state),
             drawable: drawable.into(),
@@ -476,6 +479,8 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
         self.drawable
             .borrow_mut()
             .initialise(self.state.as_mut().unwrap())
+            .with_context(|| "initialise failed")
+            .unwrap()
     }
 
     fn window_event(

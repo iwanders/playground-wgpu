@@ -140,15 +140,47 @@ impl Vertex {
     }
 }
 
-struct LocalState {}
+struct PersistentState {
+    shader: wgpu::ShaderModule,
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+}
+struct LocalState {
+    persistent: Option<PersistentState>,
+}
 impl LocalState {
     pub fn new() -> Self {
-        Self {}
+        Self { persistent: None }
     }
 }
 impl simple_start::Drawable for LocalState {
-    fn initialise(&mut self, state: &mut State) {
+    fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error> {
         state.camera.eye = vec3(0.6, -0.71, 0.904);
+        let device = &state.device;
+        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+        let mut vs = VERTICES;
+        for x in vs.iter_mut() {
+            // let angle = simple_start::get_angle_f32(0.2);
+            let angle = 0.6;
+            x.position = Mat4::from_rotation_z(angle).transform_point3(x.position);
+        }
+
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: vs.as_bytes(),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: INDICES.as_bytes(),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        self.persistent = Some(PersistentState {
+            shader,
+            vertex_buffer,
+            index_buffer,
+        });
+        Ok(())
     }
     fn render(&mut self, state: &mut State) -> Result<(), wgpu::SurfaceError> {
         state.window.as_ref().map(|k| k.request_redraw());
@@ -160,22 +192,18 @@ impl simple_start::Drawable for LocalState {
         let camera_uniform = state.camera.to_uniform();
         warn!("camera_uniform: {camera_uniform:?}");
 
-        // Something something... fragment shader... set colors? >_<
         let device = &state.device;
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+        // Something something... fragment shader... set colors? >_<
+        let persistent = self.persistent.as_ref().unwrap();
+        let shader = &persistent.shader;
+        let vertex_buffer = &persistent.vertex_buffer;
+        let index_buffer = &persistent.index_buffer;
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Camera Buffer"),
             contents: [camera_uniform].as_bytes(),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
-
-        let mut vs = VERTICES;
-        for x in vs.iter_mut() {
-            // let angle = simple_start::get_angle_f32(0.2);
-            let angle = 0.6;
-            x.position = Mat4::from_rotation_z(angle).transform_point3(x.position);
-        }
 
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
 
@@ -200,16 +228,6 @@ impl simple_start::Drawable for LocalState {
 
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: vs.as_bytes(),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: INDICES.as_bytes(),
-            usage: wgpu::BufferUsages::INDEX,
-        });
         let num_indices = INDICES.len() as u32;
 
         let texture_format = state.texture_view.texture().format();
