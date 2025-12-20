@@ -1,5 +1,5 @@
 use anyhow::Context;
-use glam::{Mat4, Vec3, vec3};
+use glam::{Mat4, Vec3, Vec3A, vec3};
 use log::*;
 use simple_start::State;
 use wgpu::util::DeviceExt;
@@ -19,6 +19,7 @@ pub struct OurUniform {
     // we use glam so we can.
     pub view_proj: Mat4,
     pub model_tf: Mat4,
+    pub camera_world_position: Vec3A,
 }
 
 use zerocopy::{Immutable, IntoBytes};
@@ -188,8 +189,10 @@ impl simple_start::Drawable for LocalState {
         let vertex_buffer = &persistent.vertex_buffer;
         let index_buffer = &persistent.index_buffer;
 
+        let camera_world_position = state.camera.eye.into();
         let our_uniform = OurUniform {
             view_proj: state.camera.to_view_projection_matrix(),
+            camera_world_position,
             model_tf: persistent.model_tf,
         };
         warn!("our_uniform: {our_uniform:?}");
