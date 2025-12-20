@@ -220,16 +220,34 @@ impl simple_start::Drawable for LocalState {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
+        let l1_theta = simple_start::get_angle_f32(1.2);
+        let l2_theta = -simple_start::get_angle_f32(0.7) + 3.14;
+        let r1 = 1.0;
+        let hardness = 20.0;
+        let kd = 0.5;
+        let ks = 0.9;
+        let sun_light = 0.01;
         let lights = vec![
             Light {
-                color: vec3a(1.0, 0.9, 0.6),
-                direction: vec3a(0.5, -0.9, 0.1),
-                hardness_kd_ks: vec3a(15.0, 0.5, 0.5),
+                color: vec3a(1.0, 0.5, 0.5),
+                direction: vec3a(l1_theta.cos() * r1, l1_theta.sin() * r1, 0.1),
+                hardness_kd_ks: vec3a(hardness, kd, ks),
             },
             Light {
-                color: vec3a(1.0, 0.3, 0.6),
-                direction: vec3a(0.5, 0.9, 0.1),
-                hardness_kd_ks: vec3a(15.0, 0.5, 0.5),
+                color: vec3a(0.5, 0.5, 0.1),
+                direction: vec3a(l2_theta.cos() * r1, l2_theta.sin() * r1, 0.1),
+                hardness_kd_ks: vec3a(hardness, kd, ks),
+            },
+            // Two 'suns' on the sides of the dragon.
+            Light {
+                color: vec3a(0.3, 0.3, 0.3),
+                direction: vec3a(1.0, 1.0, 1.0),
+                hardness_kd_ks: vec3a(sun_light, 1.0, 0.0),
+            },
+            Light {
+                color: vec3a(0.3, 0.3, 0.3),
+                direction: vec3a(1.0, -1.0, 1.0),
+                hardness_kd_ks: vec3a(sun_light, 1.0, 0.0),
             },
         ];
 

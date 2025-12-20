@@ -79,8 +79,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 		let lightColor = light_uniform.lights[i].color;
 		let L = normalize(light_uniform.lights[i].direction);
 		let hardness = light_uniform.lights[i].hardness_kd_ks.x;
-		let kd = light_uniform.lights[i].hardness_kd_ks.y;
-		let ks = light_uniform.lights[i].hardness_kd_ks.z;
+		let kd = light_uniform.lights[i].hardness_kd_ks.y; // diffuse effect
+		let ks = light_uniform.lights[i].hardness_kd_ks.z; // specular effect
 		let R = reflect(-L, N); // equivalent to 2.0 * dot(N, L) * N - L
 
 		let diffuse = max(0.0, dot(L, N)) * lightColor;
@@ -91,6 +91,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
 		color += baseColor * kd * diffuse + ks * specular;
 	}
+	// color /= f32(light_count - 2);
 
 	// Gamma-correction
 	let corrected_color = pow(color, vec3f(2.2));
