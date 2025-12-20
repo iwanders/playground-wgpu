@@ -48,18 +48,18 @@ impl Vertex {
 fn load_gltf(
     document: gltf::Document,
     buffers: &[gltf::buffer::Data],
-    primitive_index: usize,
+    desired_index: usize,
 ) -> (Vec<Vertex>, Vec<u32>) {
     let mut vertex_buffer = Vec::<Vertex>::new();
     let mut index_buffer: Vec<u32> = Vec::new();
     let mut found_indices = false;
     for scene in document.scenes() {
-        for node in scene.nodes() {
+        for (node_index, node) in scene.nodes().enumerate() {
+            if node_index != desired_index {
+                continue;
+            }
             if let Some(mesh) = node.mesh() {
                 for (mesh_index, primitive) in mesh.primitives().enumerate() {
-                    if mesh_index != primitive_index {
-                        continue;
-                    }
                     let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
                     info!("new primitive");
 
@@ -82,29 +82,29 @@ fn load_gltf(
                             vertex_buffer[ni].normal = vec3(n[0], n[1], n[2]);
                         }
                     }
-
+                    // Access indices
+                    if let Some(indices) = reader.read_indices() {
+                        match indices {
+                            ::gltf::mesh::util::ReadIndices::U8(iter) => {
+                                index_buffer.extend(iter.map(|v| v as u32));
+                            }
+                            ::gltf::mesh::util::ReadIndices::U16(iter) => {
+                                index_buffer.extend(iter.map(|v| v as u32));
+                            }
+                            ::gltf::mesh::util::ReadIndices::U32(iter) => {
+                                index_buffer.extend(iter);
+                            }
+                        }
+                    }
                     // Access texture coordinates (TexCoords)
                     if let Some(tex_coords) = reader.read_tex_coords(0) {
                         for tc in tex_coords.into_f32() {
                             // Do something with the texture coord [tc[0], tc[1]]
                         }
                     }
-
-                    // Access indices
-                    if let Some(indices) = reader.read_indices() {
-                        for index in indices.into_u32() {
-                            // Do something with the index
-                            index_buffer.push(index);
-                            found_indices = true;
-                        }
-                    }
                 }
             }
         }
-    }
-    if !found_indices {
-        // Maybe its just double vertices everywhere??
-        index_buffer.extend(0..(vertex_buffer.len() as u32) * 3);
     }
     (vertex_buffer, index_buffer)
 }
@@ -131,11 +131,10 @@ impl simple_start::Drawable for LocalState {
 
         let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
         let (document, buffers, images) = gltf::import(gltf_path)?;
-        let (vertices, indices) = load_gltf(document, &buffers, 0);
-        // info!("document: {document:#?}");
-
-        info!("vertices: {vertices:?}");
-
+        info!("document: {document:#?}");
+        let (mut vertices, indices) = load_gltf(document, &buffers, 0);
+        // panic!();
+        // info!("vertices: {vertices:?}");
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: vertices.as_bytes(),
@@ -345,7 +344,9 @@ impl simple_start::Drawable for LocalState {
             render_pass.set_bind_group(0, &camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            info!("num_indices: {num_indices:?}"); //404985
             render_pass.draw_indexed(0..num_indices, 0, 0..1);
+            // render_pass.draw_indexed(0..272500, 0, 0..1);
             // render_pass.draw(0..2, 0..1);
         }
 
