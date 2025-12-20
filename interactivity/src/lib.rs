@@ -342,7 +342,7 @@ impl Camera {
             amount_down: 0.0,
         }
     }
-    fn build_view_projection_matrix(&self) -> Mat4 {
+    pub fn to_view_projection_matrix(&self) -> Mat4 {
         // https://github.com/bitshifter/glam-rs/issues/569
         // Okay, so this doesn't actually do what we need :<
         //let view = Mat4::look_at_rh(self.eye, self.target, self.up);
@@ -353,7 +353,7 @@ impl Camera {
     }
     pub fn to_uniform(&self) -> CameraUniform {
         CameraUniform {
-            view_proj: self.build_view_projection_matrix(),
+            view_proj: self.to_view_projection_matrix(),
         }
     }
 

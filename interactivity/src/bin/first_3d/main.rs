@@ -11,6 +11,16 @@ use gltf;
 
 // https://eliemichel.github.io/LearnWebGPU/basic-3d-rendering/3d-meshes/a-simple-example.html
 
+#[repr(C)]
+// This is so we can store this in a buffer
+#[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
+pub struct OurUniform {
+    // ~We can't use cgmath with bytemuck directly, so we'll have~
+    // we use glam so we can.
+    pub view_proj: Mat4,
+    pub model_tf: Mat4,
+}
+
 use zerocopy::{Immutable, IntoBytes};
 #[repr(C)]
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable, Default)]
@@ -113,6 +123,7 @@ struct PersistentState {
     shader: wgpu::ShaderModule,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
+    model_tf: Mat4,
     index_length: u32,
 }
 struct LocalState {
@@ -125,7 +136,7 @@ impl LocalState {
 }
 impl simple_start::Drawable for LocalState {
     fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error> {
-        state.camera.eye = vec3(0.6, -0.71, 0.904);
+        state.camera.eye = vec3(-0.6, -0.65, 0.43);
         let device = &state.device;
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
@@ -146,11 +157,18 @@ impl simple_start::Drawable for LocalState {
             contents: indices.as_bytes(),
             usage: wgpu::BufferUsages::INDEX,
         });
+
+        let model_tf = Mat4::IDENTITY
+            * Mat4::from_rotation_x(std::f32::consts::PI)
+            * Mat4::from_translation(vec3(0.0, 0.0, 0.5))
+            * Mat4::from_scale(Vec3::splat(0.1));
+
         self.persistent = Some(PersistentState {
             shader,
             vertex_buffer,
             index_buffer,
             index_length,
+            model_tf,
         });
 
         Ok(())
@@ -162,8 +180,6 @@ impl simple_start::Drawable for LocalState {
         if !state.is_surface_configured {
             return Err(wgpu::SurfaceError::Lost);
         }
-        let camera_uniform = state.camera.to_uniform();
-        warn!("camera_uniform: {camera_uniform:?}");
 
         let device = &state.device;
         // Something something... fragment shader... set colors? >_<
@@ -172,9 +188,15 @@ impl simple_start::Drawable for LocalState {
         let vertex_buffer = &persistent.vertex_buffer;
         let index_buffer = &persistent.index_buffer;
 
+        let our_uniform = OurUniform {
+            view_proj: state.camera.to_view_projection_matrix(),
+            model_tf: persistent.model_tf,
+        };
+        warn!("our_uniform: {our_uniform:?}");
+
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Buffer"),
-            contents: [camera_uniform].as_bytes(),
+            label: Some("Shader Uniform"),
+            contents: [our_uniform].as_bytes(),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
