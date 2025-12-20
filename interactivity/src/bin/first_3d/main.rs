@@ -4,6 +4,7 @@ use log::*;
 use simple_start::State;
 use wgpu::util::DeviceExt;
 
+use gltf;
 // https://sotrh.github.io/learn-wgpu/beginner/tutorial4-buffer/
 // Skipping over textures and bindgroups
 // https://sotrh.github.io/learn-wgpu/beginner/tutorial6-uniforms/
@@ -12,7 +13,7 @@ use wgpu::util::DeviceExt;
 
 use zerocopy::{Immutable, IntoBytes};
 #[repr(C)]
-#[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
+#[derive(Copy, Clone, Debug, IntoBytes, Immutable, Default)]
 struct Vertex {
     position: Vec3,
     normal: Vec3,
@@ -27,102 +28,6 @@ impl Vertex {
         }
     }
 }
-
-const VERTICES: [Vertex; 16] = [
-    // The base
-    Vertex::pnc(
-        vec3(-0.5, -0.5, -0.3),
-        vec3(0.0, -1.0, 0.0),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.5, -0.5, -0.3),
-        vec3(0.0, -1.0, 0.0),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.5, 0.5, -0.3),
-        vec3(0.0, -1.0, 0.0),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(-0.5, 0.5, -0.3),
-        vec3(0.0, -1.0, 0.0),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    // Face sides have their own copy of the vertices
-    // because they have a different normal vector.
-    Vertex::pnc(
-        vec3(-0.5, -0.5, -0.3),
-        vec3(0.0, -0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.5, -0.5, -0.3),
-        vec3(0.0, -0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.0, 0.0, 0.5),
-        vec3(0.0, -0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.5, -0.5, -0.3),
-        vec3(0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.5, 0.5, -0.3),
-        vec3(0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.0, 0.0, 0.5),
-        vec3(0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.5, 0.5, -0.3),
-        vec3(0.0, 0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(-0.5, 0.5, -0.3),
-        vec3(0.0, 0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.0, 0.0, 0.5),
-        vec3(0.0, 0.848, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(-0.5, 0.5, -0.3),
-        vec3(-0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(-0.5, -0.5, -0.3),
-        vec3(-0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3(0.0, 0.0, 0.5),
-        vec3(-0.848, 0.0, 0.53),
-        vec3(1.0, 1.0, 1.0),
-    ),
-];
-const INDICES: &[u16] = &[
-    // Base
-    0, 1, 2, //
-    0, 2, 3, //
-    // side
-    4, 5, 6, //
-    7, 8, 9, //
-    10, 11, 12, //
-    13, 14, 15,
-];
 
 // Attrib has to be in sync with Vertex.
 impl Vertex {
@@ -140,10 +45,75 @@ impl Vertex {
     }
 }
 
+fn load_gltf(
+    document: gltf::Document,
+    buffers: &[gltf::buffer::Data],
+    primitive_index: usize,
+) -> (Vec<Vertex>, Vec<u32>) {
+    let mut vertex_buffer = Vec::<Vertex>::new();
+    let mut index_buffer: Vec<u32> = Vec::new();
+    let mut found_indices = false;
+    for scene in document.scenes() {
+        for node in scene.nodes() {
+            if let Some(mesh) = node.mesh() {
+                for (mesh_index, primitive) in mesh.primitives().enumerate() {
+                    if mesh_index != primitive_index {
+                        continue;
+                    }
+                    let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+                    info!("new primitive");
+
+                    // Access vertex positions
+                    if let Some(positions) = reader.read_positions() {
+                        for p in positions {
+                            vertex_buffer.push(Vertex::default());
+                            let vertex = vertex_buffer.last_mut().unwrap();
+                            // Do something with the position [p[0], p[1], p[2]]
+                            // println!("Position: {:?}", p);
+                            vertex.position = vec3(p[0], p[1], p[2]);
+                            vertex.color = vec3(p[0], p[1], p[2]);
+                        }
+                    }
+
+                    // Access normals
+                    if let Some(normals) = reader.read_normals() {
+                        for (ni, n) in normals.enumerate() {
+                            // Do something with the normal [n[0], n[1], n[2]]
+                            vertex_buffer[ni].normal = vec3(n[0], n[1], n[2]);
+                        }
+                    }
+
+                    // Access texture coordinates (TexCoords)
+                    if let Some(tex_coords) = reader.read_tex_coords(0) {
+                        for tc in tex_coords.into_f32() {
+                            // Do something with the texture coord [tc[0], tc[1]]
+                        }
+                    }
+
+                    // Access indices
+                    if let Some(indices) = reader.read_indices() {
+                        for index in indices.into_u32() {
+                            // Do something with the index
+                            index_buffer.push(index);
+                            found_indices = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if !found_indices {
+        // Maybe its just double vertices everywhere??
+        index_buffer.extend(0..(vertex_buffer.len() as u32) * 3);
+    }
+    (vertex_buffer, index_buffer)
+}
+
 struct PersistentState {
     shader: wgpu::ShaderModule,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
+    index_length: u32,
 }
 struct LocalState {
     persistent: Option<PersistentState>,
@@ -158,28 +128,32 @@ impl simple_start::Drawable for LocalState {
         state.camera.eye = vec3(0.6, -0.71, 0.904);
         let device = &state.device;
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
-        let mut vs = VERTICES;
-        for x in vs.iter_mut() {
-            // let angle = simple_start::get_angle_f32(0.2);
-            let angle = 0.6;
-            x.position = Mat4::from_rotation_z(angle).transform_point3(x.position);
-        }
+
+        let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
+        let (document, buffers, images) = gltf::import(gltf_path)?;
+        let (vertices, indices) = load_gltf(document, &buffers, 0);
+        // info!("document: {document:#?}");
+
+        info!("vertices: {vertices:?}");
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: vs.as_bytes(),
+            contents: vertices.as_bytes(),
             usage: wgpu::BufferUsages::VERTEX,
         });
+        let index_length = indices.len() as u32;
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Index Buffer"),
-            contents: INDICES.as_bytes(),
+            contents: indices.as_bytes(),
             usage: wgpu::BufferUsages::INDEX,
         });
         self.persistent = Some(PersistentState {
             shader,
             vertex_buffer,
             index_buffer,
+            index_length,
         });
+
         Ok(())
     }
     fn render(&mut self, state: &mut State) -> Result<(), wgpu::SurfaceError> {
@@ -228,7 +202,7 @@ impl simple_start::Drawable for LocalState {
 
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let num_indices = INDICES.len() as u32;
+        let num_indices = persistent.index_length;
 
         let texture_format = state.texture_view.texture().format();
 
@@ -370,9 +344,9 @@ impl simple_start::Drawable for LocalState {
             render_pass.set_pipeline(&render_pipeline);
             render_pass.set_bind_group(0, &camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-            render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..num_indices, 0, 0..1);
-            render_pass.draw(0..3, 0..1);
+            // render_pass.draw(0..2, 0..1);
         }
 
         info!("running queue");

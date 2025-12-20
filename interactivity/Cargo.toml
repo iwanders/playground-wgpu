@@ -17,3 +17,5 @@ futures-intrusive = "0.5.0"
 zerocopy = "0.8"
 zerocopy-derive = "0.8"
 glam = {version="0.30.9", features=["zerocopy"]}
+
+gltf={version="1.0", features=["utils"]}
