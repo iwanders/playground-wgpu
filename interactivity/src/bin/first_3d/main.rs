@@ -140,12 +140,12 @@ impl simple_start::Drawable for LocalState {
         let device = &state.device;
         let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
+        // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
         let (document, buffers, images) = gltf::import(gltf_path)?;
         info!("document: {document:#?}");
         let (mut vertices, indices) = load_gltf(document, &buffers, 0);
-        // panic!();
-        // info!("vertices: {vertices:?}");
+
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: vertices.as_bytes(),
@@ -366,10 +366,7 @@ impl simple_start::Drawable for LocalState {
             render_pass.set_bind_group(0, &camera_bind_group, &[]);
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            info!("num_indices: {num_indices:?}"); //404985
             render_pass.draw_indexed(0..num_indices, 0, 0..1);
-            // render_pass.draw_indexed(0..272500, 0, 0..1);
-            // render_pass.draw(0..2, 0..1);
         }
 
         info!("running queue");
