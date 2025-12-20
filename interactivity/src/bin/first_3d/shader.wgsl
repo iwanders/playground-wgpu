@@ -4,8 +4,23 @@ struct CameraUniform {
     model_matrix: mat4x4<f32>,
     camera_world_position: vec3f,
 };
-@group(0) @binding(0) // 1.
+@group(0) @binding(0)
 var<uniform> our_uniform: CameraUniform;
+
+
+
+struct Light {
+    color: vec3f,
+    direction: vec3f,
+    hardness_kd_ks: vec3f,
+};
+struct LightUniform {
+    lights: array<Light>, // arrayLength(&lights.point);
+
+};
+@group(1) @binding(1)
+var<storage, read> light_uniform: LightUniform;
+
 
 
 // Vertex shader
@@ -41,10 +56,6 @@ fn vs_main(
 
 //A: in.clip_position[1] == in.clip_position.y
 
-struct Light {
-    color: vec3f,
-    direction: vec3f,
-};
 // Fragment shader
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -55,25 +66,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // let shading = dot(lightDirection, in.normal);
     // let color = in.color * shading;
     //
-    const lights = array<Light, 2>(
-        Light(vec3f(1.0, 0.9, 0.6),vec3f(0.5, -0.9, 0.1)),
-        Light(vec3f(0.6, 0.9, 1.0),vec3f(0.2, 0.4, 0.3)),
-    );
-
     // Compute shading
 	let N = normalize(in.normal);
 	let V = normalize(in.viewDirection);
 
 	// Sample texture
 	let baseColor = vec3(1.0, 1.0, 1.0);
-	let kd = 0.5;
-	let ks = 0.5;
-	let hardness = 30.0;
 
+	let light_count = arrayLength(&light_uniform.lights);
 	var color = vec3f(0.0);
-	for (var i: i32 = 0; i < 2; i++) {
-		let lightColor = lights[i].color;
-		let L = normalize(lights[i].direction);
+	for (var i: u32 = 0; i < light_count; i++) {
+		let lightColor = light_uniform.lights[i].color;
+		let L = normalize(light_uniform.lights[i].direction);
+		let hardness = light_uniform.lights[i].hardness_kd_ks.x;
+		let kd = light_uniform.lights[i].hardness_kd_ks.y;
+		let ks = light_uniform.lights[i].hardness_kd_ks.z;
 		let R = reflect(-L, N); // equivalent to 2.0 * dot(N, L) * N - L
 
 		let diffuse = max(0.0, dot(L, N)) * lightColor;

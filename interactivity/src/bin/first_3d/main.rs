@@ -1,5 +1,5 @@
 use anyhow::Context;
-use glam::{Mat4, Vec3, Vec3A, vec3};
+use glam::{Mat4, Vec3, Vec3A, vec3, vec3a};
 use log::*;
 use simple_start::State;
 use wgpu::util::DeviceExt;
@@ -20,6 +20,23 @@ pub struct OurUniform {
     pub view_proj: Mat4,
     pub model_tf: Mat4,
     pub camera_world_position: Vec3A,
+}
+
+// struct Light {
+//     color: vec3f,
+//     direction: vec3f,
+//     hardness: f32,
+//     kd: f32,
+//     ks: f32,
+// };
+
+#[repr(C, packed)]
+// This is so we can store this in a buffer
+#[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
+pub struct Light {
+    pub color: Vec3A,
+    pub direction: Vec3A,
+    pub hardness_kd_ks: Vec3A,
 }
 
 use zerocopy::{Immutable, IntoBytes};
@@ -124,8 +141,8 @@ struct PersistentState {
     shader: wgpu::ShaderModule,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
-    model_tf: Mat4,
     index_length: u32,
+    model_tf: Mat4,
 }
 struct LocalState {
     persistent: Option<PersistentState>,
@@ -203,6 +220,25 @@ impl simple_start::Drawable for LocalState {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
+        let lights = vec![
+            Light {
+                color: vec3a(1.0, 0.9, 0.6),
+                direction: vec3a(0.5, -0.9, 0.1),
+                hardness_kd_ks: vec3a(15.0, 0.5, 0.5),
+            },
+            Light {
+                color: vec3a(1.0, 0.3, 0.6),
+                direction: vec3a(0.5, 0.9, 0.1),
+                hardness_kd_ks: vec3a(15.0, 0.5, 0.5),
+            },
+        ];
+
+        let light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Light buffer"),
+            contents: lights.as_bytes(),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
 
         let depth_size = wgpu::Extent3d {
@@ -253,10 +289,32 @@ impl simple_start::Drawable for LocalState {
             label: Some("camera_bind_group"),
         });
 
+        let light_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+                label: Some("light_bind_group_layout"),
+            });
+        let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &light_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 1,
+                resource: light_buffer.as_entire_binding(),
+            }],
+            label: Some("light_bind_group"),
+        });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout],
+                bind_group_layouts: &[&camera_bind_group_layout, &light_bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -367,6 +425,7 @@ impl simple_start::Drawable for LocalState {
 
             render_pass.set_pipeline(&render_pipeline);
             render_pass.set_bind_group(0, &camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &light_bind_group, &[]);
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..num_indices, 0, 0..1);
