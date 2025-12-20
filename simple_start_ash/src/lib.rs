@@ -23,10 +23,16 @@ pub struct State {
     instance: ash::Instance,
     // surface: wgpu::Surface<'static>,
     pub device: ash::Device,
-    pub queue: ash::vk::Queue,
-    pub pool: ash::vk::CommandPool,
-    pub setup_command_buffer: ash::vk::CommandBuffer,
-    pub draw_command_buffer: ash::vk::CommandBuffer,
+    pub pdevice: ash::vk::PhysicalDevice,
+    pub queue: vk::Queue,
+    pub pool: vk::CommandPool,
+    pub setup_command_buffer: vk::CommandBuffer,
+    pub draw_command_buffer: vk::CommandBuffer,
+    pub image: vk::Image,
+    pub image_memory: vk::DeviceMemory,
+    pub draw_commands_reuse_fence: vk::Fence,
+    pub setup_commands_reuse_fence: vk::Fence,
+    pub rendering_complete_semaphore: vk::Semaphore,
     // pub queue: wgpu::Queue,
     // pub buffer: wgpu::Buffer,
     // pub texture: wgpu::Texture,
@@ -71,6 +77,24 @@ unsafe extern "system" fn vulkan_debug_callback(
         }
     }
     vk::FALSE
+}
+
+// Helper copied verbatim from https://github.com/ash-rs/ash/blob/0.38.0/ash-examples/src/lib.rs#L122
+// This video: https://youtu.be/nD83r06b5NE?t=1588
+// explains why we need this... there's multipule memory heaps on the GPU O_o
+pub fn find_memorytype_index(
+    memory_req: &vk::MemoryRequirements,
+    memory_prop: &vk::PhysicalDeviceMemoryProperties,
+    flags: vk::MemoryPropertyFlags,
+) -> Option<u32> {
+    memory_prop.memory_types[..memory_prop.memory_type_count as _]
+        .iter()
+        .enumerate()
+        .find(|(index, memory_type)| {
+            (1 << index) & memory_req.memory_type_bits != 0
+                && memory_type.property_flags & flags == flags
+        })
+        .map(|(index, _memory_type)| index as _)
 }
 
 impl State {
@@ -237,46 +261,267 @@ impl State {
         let draw_command_buffer = command_buffers[1];
 
         // Next, we create the output image?
+
+        let extent = vk::Extent3D {
+            width,
+            height,
+            depth: 1,
+        };
         let img_info = vk::ImageCreateInfo::default()
             .format(vk::Format::R8G8B8A8_UNORM)
+            .extent(extent)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .usage(vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSFER_SRC)
+            .mip_levels(1)
+            .array_layers(1)
             .image_type(vk::ImageType::TYPE_2D);
         let image = unsafe { device.create_image(&img_info, None)? };
+        info!("image: {image:?}");
+        let memory_req = unsafe { device.get_image_memory_requirements(image) };
+        info!("memory_req: {memory_req:#?}");
+
+        // Okay... we have an image now... but it doesn't have any memory allocated to it?]
+        // https://youtu.be/nD83r06b5NE?t=1637
+        // so yea that's... complex.
+        let device_memory_properties =
+            unsafe { instance.get_physical_device_memory_properties(pdevice) };
+        let image_memory_req = unsafe { device.get_image_memory_requirements(image) };
+        let image_memory_index = find_memorytype_index(
+            &image_memory_req,
+            &device_memory_properties,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+        )
+        .with_context(|| "Unable to find suitable memory index for image.")?;
+        info!("image_memory_index: {image_memory_index:#?}");
+
+        let image_allocate_info = vk::MemoryAllocateInfo::default()
+            .allocation_size(image_memory_req.size)
+            .memory_type_index(image_memory_index);
+
+        let image_memory = unsafe { device.allocate_memory(&image_allocate_info, None)? };
+        unsafe { device.bind_image_memory(image, image_memory, 0)? };
+
+        let fence_create_info =
+            vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
+
+        let draw_commands_reuse_fence = unsafe { device.create_fence(&fence_create_info, None)? };
+
+        let setup_commands_reuse_fence = unsafe { device.create_fence(&fence_create_info, None)? };
+
+        let semaphore_create_info = vk::SemaphoreCreateInfo::default();
+
+        let rendering_complete_semaphore =
+            unsafe { device.create_semaphore(&semaphore_create_info, None)? };
 
         Ok(State {
             instance,
             device,
+            pdevice,
             width,
             height,
             queue,
             pool,
             setup_command_buffer,
             draw_command_buffer,
+            image,
+            image_memory,
+            draw_commands_reuse_fence,
+            setup_commands_reuse_fence,
+            rendering_complete_semaphore,
         })
     }
 
     pub async fn save<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         let p: &Path = path.as_ref();
-        todo!();
-        // let buffer_slice = self.buffer.slice(..);
 
-        // NOTE: We have to create the mapping THEN device.poll() before await
-        // the future. Otherwise the application will freeze.
-        // let (tx, rx) = futures_intrusive::channel::shared::oneshot_channel();
-        // buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-        //     tx.send(result).unwrap();
-        // });
-        // self.device
-        //     .poll(wgpu::PollType::wait_indefinitely())
-        //     .unwrap();
-        // rx.receive().await.unwrap().unwrap();
+        // extract data from the memory behind the image? >_<
 
-        // let data = buffer_slice.get_mapped_range();
+        // https://github.com/SaschaWillems/Vulkan/blob/b9f0ac91d2adccc3055a904d3a8f6553b10ff6cd/examples/renderheadless/renderheadless.cpp#L691
+        // oof... that's a lot of work, but it's a lot of duplication...
 
-        // use image::{ImageBuffer, Rgba};
-        // let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(self.width, self.height, data).unwrap();
-        // buffer
-        //     .save(p)
-        //     .with_context(|| format!("failed to save to {p:?}"))
+        let extent = vk::Extent3D {
+            width: self.width,
+            height: self.height,
+            depth: 1,
+        };
+        let img_info = vk::ImageCreateInfo::default()
+            .format(vk::Format::R8G8B8A8_UNORM)
+            .extent(extent)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .usage(vk::ImageUsageFlags::TRANSFER_DST) // Flag as destination now
+            .mip_levels(1)
+            .array_layers(1)
+            // .initial_layout(vk::ImageLayout::UNDEFINED)
+            .tiling(vk::ImageTiling::LINEAR)
+            .image_type(vk::ImageType::TYPE_2D);
+        let image = unsafe { self.device.create_image(&img_info, None)? };
+        info!("image: {image:?}");
+        let memory_req = unsafe { self.device.get_image_memory_requirements(image) };
+        info!("memory_req: {memory_req:#?}");
+
+        let device_memory_properties = unsafe {
+            self.instance
+                .get_physical_device_memory_properties(self.pdevice)
+        };
+        let image_memory_req = unsafe { self.device.get_image_memory_requirements(image) };
+        let image_memory_index = find_memorytype_index(
+            &image_memory_req,
+            &device_memory_properties,
+            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT, // !!! Allocate it as host visible, and coherent.
+        )
+        .with_context(|| "Unable to find suitable memory index for image.")?;
+        info!("image_memory_index: {image_memory_index:#?}");
+
+        let image_allocate_info = vk::MemoryAllocateInfo::default()
+            .allocation_size(image_memory_req.size)
+            .memory_type_index(image_memory_index);
+
+        let image_memory = unsafe { self.device.allocate_memory(&image_allocate_info, None)? };
+        unsafe { self.device.bind_image_memory(image, image_memory, 0)? };
+
+        // Something something command to transfer now...
+
+        // Execute commands.
+        unsafe {
+            //
+            let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
+                .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+            self.device
+                .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
+
+            {
+                // Source image layout.
+                let image_barrier = vk::ImageMemoryBarrier::default()
+                    .image(self.image)
+                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                    .old_layout(vk::ImageLayout::UNDEFINED)
+                    .new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
+                    .subresource_range(vk::ImageSubresourceRange {
+                        aspect_mask: vk::ImageAspectFlags::COLOR,
+                        base_mip_level: 0,
+                        level_count: 1,
+                        base_array_layer: 0,
+                        layer_count: 1,
+                    });
+
+                self.device.cmd_pipeline_barrier(
+                    self.draw_command_buffer,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[image_barrier],
+                );
+            }
+
+            {
+                // Destination image layout.
+                let image_barrier = vk::ImageMemoryBarrier::default()
+                    .image(image)
+                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                    .old_layout(vk::ImageLayout::UNDEFINED)
+                    .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                    .subresource_range(vk::ImageSubresourceRange {
+                        aspect_mask: vk::ImageAspectFlags::COLOR,
+                        base_mip_level: 0,
+                        level_count: 1,
+                        base_array_layer: 0,
+                        layer_count: 1,
+                    });
+
+                self.device.cmd_pipeline_barrier(
+                    self.draw_command_buffer,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[image_barrier],
+                );
+            }
+
+            // Do some commands here...
+            let region = vk::ImageCopy::default()
+                .extent(extent)
+                .dst_subresource(
+                    vk::ImageSubresourceLayers::default()
+                        .aspect_mask(vk::ImageAspectFlags::COLOR)
+                        .layer_count(1),
+                )
+                .src_subresource(
+                    vk::ImageSubresourceLayers::default()
+                        .aspect_mask(vk::ImageAspectFlags::COLOR)
+                        .layer_count(1),
+                );
+            self.device.cmd_copy_image(
+                self.draw_command_buffer,
+                self.image,
+                vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                image,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                &[region],
+            );
+
+            self.device.end_command_buffer(self.draw_command_buffer)?;
+
+            let command_buffers = vec![self.draw_command_buffer];
+            self.device
+                .reset_fences(&[self.draw_commands_reuse_fence])?;
+
+            let sema = [self.rendering_complete_semaphore];
+            let submit_info = vk::SubmitInfo::default()
+                .wait_semaphores(&sema)
+                .wait_dst_stage_mask(&[])
+                .command_buffers(&command_buffers)
+                .signal_semaphores(&[]);
+
+            self.device
+                .queue_submit(self.queue, &[submit_info], self.draw_commands_reuse_fence)?;
+        };
+
+        // Then, we map the memory, and copy it...
+        //
+        let data = {
+            let mut res = vec![];
+
+            let subres = vk::ImageSubresource::default().aspect_mask(vk::ImageAspectFlags::COLOR);
+            let layout = unsafe { self.device.get_image_subresource_layout(image, subres) };
+            info!("layout: {layout:#?}");
+            unsafe {
+                let mut raw_location = self.device.map_memory(
+                    image_memory,
+                    0,
+                    vk::WHOLE_SIZE,
+                    vk::MemoryMapFlags::empty(),
+                )?;
+                raw_location = raw_location.offset(layout.offset as isize);
+                let mut raw_data =
+                    std::slice::from_raw_parts(raw_location.cast::<u8>(), layout.size as usize);
+                info!("raw len: {:?}", raw_data.len());
+                // https://github.com/SaschaWillems/Vulkan/blob/b9f0ac91d2adccc3055a904d3a8f6553b10ff6cd/examples/renderheadless/renderheadless.cpp#L801-L816
+                for y in 0..self.height {
+                    for x in 0..self.width as usize {
+                        let p = raw_data[x * 4..(x + 1) * 4].as_bytes();
+                        res.push(p[0]);
+                        res.push(p[1]);
+                        res.push(p[2]);
+                        res.push(p[3]);
+                    }
+                    raw_data = &raw_data[layout.row_pitch as usize..];
+                }
+            }
+
+            res
+        };
+
+        use image::{ImageBuffer, Rgba};
+        let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(self.width, self.height, data)
+            .with_context(|| "input data vector not right")?;
+        buffer
+            .save(p)
+            .with_context(|| format!("failed to save to {p:?}"))
     }
 }
 
