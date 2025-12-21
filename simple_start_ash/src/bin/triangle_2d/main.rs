@@ -51,6 +51,18 @@ fn make_clear_rgba(r: u32, g: u32, b: u32, a: u32) -> vk::ClearColorValue {
         res.uint32[1] = g;
         res.uint32[2] = b;
         res.uint32[3] = a;
+        // res.float32[0] = 0.5;
+        // res.float32[1] = 0.5;
+        // res.float32[2] = 0.5;
+        // res.float32[3] = 0.5;
+        res.uint32[0] = 0x3F490E7F; // 0.78 as float value, 0x7f in u8 value.
+        res.uint32[1] = 0x3F490E7F;
+        res.uint32[2] = 0x3F490E7F;
+        res.uint32[3] = 0x3F490E7F;
+        res.float32[0] = r as f32 / 255.0;
+        res.float32[1] = g as f32 / 255.0;
+        res.float32[2] = b as f32 / 255.0;
+        res.float32[3] = a as f32 / 255.0;
     }
     res
 }
@@ -353,15 +365,15 @@ impl LocalState {
             let image_view = self.device.create_image_view(&create_view_info, None)?;
             let mut clear_value = vk::ClearValue::default();
             unsafe {
-                clear_value.color = make_clear_rgba(255, 255, 255, 128);
+                clear_value.color = make_clear_rgba(255, 255, 0, 255);
             }
             let color_attachment_info = vk::RenderingAttachmentInfo::default()
-                .image_layout(vk::ImageLayout::ATTACHMENT_OPTIMAL)
+                .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+                .image_view(image_view)
                 .resolve_mode(vk::ResolveModeFlags::NONE)
                 .load_op(vk::AttachmentLoadOp::CLEAR)
                 .store_op(vk::AttachmentStoreOp::STORE)
-                .clear_value(clear_value)
-                .image_view(image_view);
+                .clear_value(clear_value);
             // let mut color_attachments = [color_attachment_info; 4];
 
             let rendering_info = vk::RenderingInfo::default()
@@ -458,6 +470,7 @@ impl LocalState {
             self.device
                 .cmd_begin_rendering(self.draw_command_buffer, &rendering_info);
 
+            /*
             let clear_attachment_info = vk::ClearAttachment::default()
                 .clear_value(clear_value)
                 .color_attachment(0)
@@ -477,7 +490,7 @@ impl LocalState {
                                     .height(self.height),
                             ),
                     )],
-            );
+            ); */
             // Oh, we still do need a pipeline here... just no render passess.
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
             //
