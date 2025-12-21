@@ -44,25 +44,14 @@ const VERTICES: &[Vertex] = &[
 ];
 const INDICES: &[u32] = &[0, 1, 3];
 
-fn make_clear_rgba(r: u32, g: u32, b: u32, a: u32) -> vk::ClearColorValue {
+fn make_clear_rgba(r: f32, g: f32, b: f32, a: f32) -> vk::ClearColorValue {
     let mut res = vk::ClearColorValue::default();
     unsafe {
-        res.uint32[0] = r;
-        res.uint32[1] = g;
-        res.uint32[2] = b;
-        res.uint32[3] = a;
-        // res.float32[0] = 0.5;
-        // res.float32[1] = 0.5;
-        // res.float32[2] = 0.5;
-        // res.float32[3] = 0.5;
-        res.uint32[0] = 0x3F490E7F; // 0.78 as float value, 0x7f in u8 value.
-        res.uint32[1] = 0x3F490E7F;
-        res.uint32[2] = 0x3F490E7F;
-        res.uint32[3] = 0x3F490E7F;
-        res.float32[0] = r as f32 / 255.0;
-        res.float32[1] = g as f32 / 255.0;
-        res.float32[2] = b as f32 / 255.0;
-        res.float32[3] = a as f32 / 255.0;
+        // res.uint32[0] = 0x3F490E7F; // 0.78 as float value, 0x7f in u8 value.
+        res.float32[0] = r;
+        res.float32[1] = g;
+        res.float32[2] = b;
+        res.float32[3] = a;
     }
     res
 }
@@ -365,13 +354,13 @@ impl LocalState {
             let image_view = self.device.create_image_view(&create_view_info, None)?;
             let mut clear_value = vk::ClearValue::default();
             unsafe {
-                clear_value.color = make_clear_rgba(255, 255, 0, 255);
+                clear_value.color = make_clear_rgba(0.0, 0.0, 1.0, 0.5);
             }
             let color_attachment_info = vk::RenderingAttachmentInfo::default()
                 .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
                 .image_view(image_view)
                 .resolve_mode(vk::ResolveModeFlags::NONE)
-                .load_op(vk::AttachmentLoadOp::CLEAR)
+                .load_op(vk::AttachmentLoadOp::CLEAR) // This should be clear to actually clear it.
                 .store_op(vk::AttachmentStoreOp::STORE)
                 .clear_value(clear_value);
             // let mut color_attachments = [color_attachment_info; 4];
@@ -414,20 +403,6 @@ impl LocalState {
                 );
             }
 
-            /*
-            self.device.cmd_clear_color_image(
-                self.draw_command_buffer,
-                self.image,
-                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-                &make_clear_rgba(233, 23, 23, 255),
-                &[vk::ImageSubresourceRange {
-                    aspect_mask: vk::ImageAspectFlags::COLOR,
-                    base_mip_level: 0,
-                    level_count: 1,
-                    base_array_layer: 0,
-                    layer_count: 1,
-                }],
-            );*/
             let viewport = vk::Viewport::default()
                 .width(self.width as f32)
                 .height(self.height as f32)
@@ -470,39 +445,11 @@ impl LocalState {
             self.device
                 .cmd_begin_rendering(self.draw_command_buffer, &rendering_info);
 
-            /*
-            let clear_attachment_info = vk::ClearAttachment::default()
-                .clear_value(clear_value)
-                .color_attachment(0)
-                .aspect_mask(vk::ImageAspectFlags::COLOR);
-            self.device.cmd_clear_attachments(
-                self.draw_command_buffer,
-                std::slice::from_ref(&clear_attachment_info),
-                &[vk::ClearRect::default()
-                    .base_array_layer(0)
-                    .layer_count(1)
-                    .rect(
-                        vk::Rect2D::default()
-                            .offset(vk::Offset2D::default().x(0).y(0))
-                            .extent(
-                                vk::Extent2D::default()
-                                    .width(self.width)
-                                    .height(self.height),
-                            ),
-                    )],
-            ); */
             // Oh, we still do need a pipeline here... just no render passess.
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
             //
             const DRAW_INDICED: bool = true;
             if DRAW_INDICED {
-                // void vkCmdDrawIndexed(
-                //     VkCommandBuffer                             commandBuffer,
-                //     uint32_t                                    indexCount,
-                //     uint32_t                                    instanceCount,
-                //     uint32_t                                    firstIndex,
-                //     int32_t                                     vertexOffset,
-                //     uint32_t                                    firstInstance);
                 self.device.cmd_draw_indexed(
                     self.draw_command_buffer,
                     INDICES.len() as _,
