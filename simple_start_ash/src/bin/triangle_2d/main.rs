@@ -37,8 +37,12 @@ const VERTICES: &[Vertex] = &[
         position: [0.0, -1.0, 0.0, 1.0],
         color: [1.0, 0.0, 0.0, 1.0],
     },
+    Vertex {
+        position: [0.5, -1.0, 0.0, 1.0],
+        color: [1.0, 0.0, 0.0, 1.0],
+    },
 ];
-const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4, /* padding */ 0];
+const INDICES: &[u32] = &[0, 1, 3];
 
 fn make_clear_rgba(r: u32, g: u32, b: u32, a: u32) -> vk::ClearColorValue {
     let mut res = vk::ClearColorValue::default();
@@ -73,7 +77,7 @@ impl LocalState {
             let cache_info = vk::PipelineCacheCreateInfo::default();
             let pipeline_cache = self.device.create_pipeline_cache(&cache_info, None)?;
 
-            let index_buffer_data = [0u32, 1, 2];
+            let index_buffer_data = INDICES;
             let index_buffer_info = vk::BufferCreateInfo::default()
                 .size(std::mem::size_of_val(&index_buffer_data) as u64)
                 .usage(vk::BufferUsageFlags::INDEX_BUFFER)
@@ -118,7 +122,7 @@ impl LocalState {
                 .unwrap();
 
             let vertex_input_buffer_info = vk::BufferCreateInfo {
-                size: 3 * std::mem::size_of::<Vertex>() as u64,
+                size: VERTICES.len() as u64 * std::mem::size_of::<Vertex>() as u64,
                 usage: vk::BufferUsageFlags::VERTEX_BUFFER,
                 sharing_mode: vk::SharingMode::EXCLUSIVE,
                 ..Default::default()
@@ -234,6 +238,7 @@ impl LocalState {
                 .vertex_binding_descriptions(&vertex_input_binding_descriptions);
             let vertex_input_assembly_state_info = vk::PipelineInputAssemblyStateCreateInfo {
                 topology: vk::PrimitiveTopology::TRIANGLE_LIST,
+
                 ..Default::default()
             };
             let viewports = [vk::Viewport {
@@ -452,8 +457,27 @@ impl LocalState {
             // Oh, we still do need a pipeline here... just no render passess.
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
             //
-            self.device
-                .cmd_draw(self.draw_command_buffer, VERTICES.len() as _, 1, 0, 0);
+            const DRAW_INDICED: bool = true;
+            if DRAW_INDICED {
+                // void vkCmdDrawIndexed(
+                //     VkCommandBuffer                             commandBuffer,
+                //     uint32_t                                    indexCount,
+                //     uint32_t                                    instanceCount,
+                //     uint32_t                                    firstIndex,
+                //     int32_t                                     vertexOffset,
+                //     uint32_t                                    firstInstance);
+                self.device.cmd_draw_indexed(
+                    self.draw_command_buffer,
+                    INDICES.len() as _,
+                    1,
+                    0,
+                    0,
+                    0,
+                );
+            } else {
+                self.device
+                    .cmd_draw(self.draw_command_buffer, VERTICES.len() as _, 1, 0, 0);
+            }
             self.device.cmd_end_rendering(self.draw_command_buffer);
             self.device.end_command_buffer(self.draw_command_buffer)?;
 
