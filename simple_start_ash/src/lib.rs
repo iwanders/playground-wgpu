@@ -19,6 +19,8 @@
 // Read up on what dynamic rendering in the vk api is, makes things consistent.
 //  https://youtu.be/0OqJtPnkfC8?t=1038
 //  https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/03_Drawing/00_Framebuffers.html
+//  Dynamic rendering does away with the pipeline.
+//    https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
 // Don't support swapchain resizing.
 // Understand vkPresentMode
 // do not rely on vkQueueWaitIdle, it does not eliminate pipelining.
@@ -38,8 +40,8 @@
 //       no raytracing :< but we can mix and match according to this document.
 //     https://github.com/KhronosGroup/Vulkan-Docs/blob/main/proposals/VK_EXT_shader_object.adoc
 //       no multiview
+//     https://docs.vulkan.org/spec/latest/chapters/shaders.html#shaders-objects-state
 //
-// https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
 //
 // Some good diagrams here: https://github.com/David-DiGioia/vulkan-diagrams
 //
@@ -49,6 +51,9 @@
 // Multiple objects? https://docs.vulkan.org/tutorial/latest/16_Multiple_Objects.html
 //
 //  Hmm, looks like command buffers are persistent... so they can be reused and submitted again?
+//
+//
+// What's VK_EXT_descriptor_indexing ? from https://amini-allight.org/post/vknew-modern-vulkan-with-descriptor-indexing-dynamic-rendering-and-shader-objects
 //
 use anyhow::Context;
 use ash::ext::debug_utils;
@@ -79,6 +84,7 @@ pub struct State {
     pub width: u32,
     pub height: u32,
 }
+pub mod shader_util;
 
 unsafe extern "system" fn vulkan_debug_callback(
     message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,

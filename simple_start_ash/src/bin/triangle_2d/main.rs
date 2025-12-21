@@ -177,9 +177,29 @@ impl LocalState {
                 .bind_buffer_memory(vertex_input_buffer, vertex_input_buffer_memory, 0)
                 .unwrap();
 
-            // spv files from https://github.com/ash-rs/ash/tree/0.38.0/ash-examples/shader/triangle
-            let mut vertex_spv_file = Cursor::new(&include_bytes!("./vert.spv")[..]);
-            let mut frag_spv_file = Cursor::new(&include_bytes!("./frag.spv")[..]);
+            const COMPILE_SHADERS: bool = true;
+
+            let (vertex_spv_bytes, frag_spv_file) = if COMPILE_SHADERS {
+                let vert_bytes = simple_start::shader_util::compile_shader(
+                    include_str!("./triangle.vert"),
+                    naga::ShaderStage::Vertex,
+                )?;
+                let frag_bytes = simple_start::shader_util::compile_shader(
+                    include_str!("./triangle.frag"),
+                    naga::ShaderStage::Fragment,
+                )?;
+                // use zerocopy::IntoBytes;
+                // std::fs::write("/tmp/foo.bin", &z.as_bytes()).expect("Unable to write file");
+                (vert_bytes, frag_bytes)
+            } else {
+                // spv files from https://github.com/ash-rs/ash/tree/0.38.0/ash-examples/shader/triangle
+                (
+                    include_bytes!("./vert.spv")[..].to_vec(),
+                    include_bytes!("./frag.spv")[..].to_vec(),
+                )
+            };
+            let mut vertex_spv_file = Cursor::new(&vertex_spv_bytes);
+            let mut frag_spv_file = Cursor::new(&frag_spv_file);
 
             let vertex_code = ash::util::read_spv(&mut vertex_spv_file)
                 .expect("Failed to read vertex shader spv file");
