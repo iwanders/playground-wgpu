@@ -176,6 +176,7 @@ impl LocalState {
                 .bind_buffer_memory(vertex_input_buffer, vertex_input_buffer_memory, 0)
                 .unwrap();
 
+            // spv files from https://github.com/ash-rs/ash/tree/0.38.0/ash-examples/shader/triangle
             let mut vertex_spv_file = Cursor::new(&include_bytes!("./vert.spv")[..]);
             let mut frag_spv_file = Cursor::new(&include_bytes!("./frag.spv")[..]);
 
@@ -317,6 +318,7 @@ impl LocalState {
                 .color_blend_state(&color_blend_state)
                 .dynamic_state(&dynamic_state_info)
                 .layout(layout);
+
             let pipelines = self
                 .device
                 .create_graphics_pipelines(
@@ -356,7 +358,7 @@ impl LocalState {
             let color_attachment_info = vk::RenderingAttachmentInfo::default()
                 .image_layout(vk::ImageLayout::ATTACHMENT_OPTIMAL)
                 .resolve_mode(vk::ResolveModeFlags::NONE)
-                .load_op(vk::AttachmentLoadOp::LOAD)
+                .load_op(vk::AttachmentLoadOp::CLEAR)
                 .store_op(vk::AttachmentStoreOp::STORE)
                 .clear_value(clear_value)
                 .image_view(image_view);
@@ -399,6 +401,8 @@ impl LocalState {
                     &[image_barrier],
                 );
             }
+
+            /*
             self.device.cmd_clear_color_image(
                 self.draw_command_buffer,
                 self.image,
@@ -411,8 +415,7 @@ impl LocalState {
                     base_array_layer: 0,
                     layer_count: 1,
                 }],
-            );
-
+            );*/
             let viewport = vk::Viewport::default()
                 .width(self.width as f32)
                 .height(self.height as f32)
@@ -454,6 +457,27 @@ impl LocalState {
             );
             self.device
                 .cmd_begin_rendering(self.draw_command_buffer, &rendering_info);
+
+            let clear_attachment_info = vk::ClearAttachment::default()
+                .clear_value(clear_value)
+                .color_attachment(0)
+                .aspect_mask(vk::ImageAspectFlags::COLOR);
+            self.device.cmd_clear_attachments(
+                self.draw_command_buffer,
+                std::slice::from_ref(&clear_attachment_info),
+                &[vk::ClearRect::default()
+                    .base_array_layer(0)
+                    .layer_count(1)
+                    .rect(
+                        vk::Rect2D::default()
+                            .offset(vk::Offset2D::default().x(0).y(0))
+                            .extent(
+                                vk::Extent2D::default()
+                                    .width(self.width)
+                                    .height(self.height),
+                            ),
+                    )],
+            );
             // Oh, we still do need a pipeline here... just no render passess.
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
             //

@@ -30,9 +30,25 @@
 // timeline semaphores, monotonically increasing u64, incremented when work is done, can wait on it to be value.
 //  https://docs.vulkan.org/refpages/latest/refpages/source/vkWaitSemaphores.html
 //
+// From A Gentle Introduction to Vulkan for Rendering and Compute Workloads - Vulkan Course
+//  https://youtu.be/nD83r06b5NE?t=4435
+//  https://docs.vulkan.org/refpages/latest/refpages/source/VK_EXT_shader_object.html
+//     VK_EXT_shader_object does away with the pipeline object?
+//     https://www.khronos.org/blog/you-can-use-vulkan-without-pipelines-today
+//       no raytracing :< but we can mix and match according to this document.
+//     https://github.com/KhronosGroup/Vulkan-Docs/blob/main/proposals/VK_EXT_shader_object.adoc
+//       no multiview
 //
 // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
 //
+// Some good diagrams here: https://github.com/David-DiGioia/vulkan-diagrams
+//
+// https://developer.nvidia.com/vulkan-memory-management
+// Oh, and on the reverse z buffer; https://developer.nvidia.com/blog/visualizing-depth-precision/
+//
+// Multiple objects? https://docs.vulkan.org/tutorial/latest/16_Multiple_Objects.html
+//
+//  Hmm, looks like command buffers are persistent... so they can be reused and submitted again?
 //
 use anyhow::Context;
 use ash::ext::debug_utils;
@@ -41,6 +57,7 @@ use log::*;
 use std::ffi;
 use std::path::Path;
 use zerocopy::IntoBytes;
+
 pub struct State {
     pub instance: ash::Instance,
     // surface: wgpu::Surface<'static>,
@@ -232,6 +249,7 @@ impl State {
             let device_extension_names_raw = [
                 ash::khr::swapchain::NAME.as_ptr(),
                 ash::khr::dynamic_rendering::NAME.as_ptr(),
+                // ash::ext::shader_object::NAME.as_ptr()
                 // ash::khr::dynamic_rendering_local_read::NAME.as_ptr(),
             ];
             let features = vk::PhysicalDeviceFeatures {
