@@ -30,6 +30,10 @@
 // timeline semaphores, monotonically increasing u64, incremented when work is done, can wait on it to be value.
 //  https://docs.vulkan.org/refpages/latest/refpages/source/vkWaitSemaphores.html
 //
+//
+// https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
+//
+//
 use anyhow::Context;
 use ash::ext::debug_utils;
 use ash::{Entry, vk};
@@ -38,7 +42,7 @@ use std::ffi;
 use std::path::Path;
 use zerocopy::IntoBytes;
 pub struct State {
-    instance: ash::Instance,
+    pub instance: ash::Instance,
     // surface: wgpu::Surface<'static>,
     pub device: ash::Device,
     pub pdevice: ash::vk::PhysicalDevice,
@@ -228,7 +232,7 @@ impl State {
             let device_extension_names_raw = [
                 ash::khr::swapchain::NAME.as_ptr(),
                 ash::khr::dynamic_rendering::NAME.as_ptr(),
-                ash::khr::dynamic_rendering_local_read::NAME.as_ptr(),
+                // ash::khr::dynamic_rendering_local_read::NAME.as_ptr(),
             ];
             let features = vk::PhysicalDeviceFeatures {
                 shader_clip_distance: 1,
@@ -239,13 +243,17 @@ impl State {
             let mut physical_device_features =
                 vk::PhysicalDeviceVulkan13Features::default().dynamic_rendering(true);
 
+            // let mut local_read_features =
+            //     vk::PhysicalDeviceDynamicRenderingLocalReadFeaturesKHR::default()
+            //         .dynamic_rendering_local_read(true);
+
             let queue_info = vk::DeviceQueueCreateInfo::default()
                 .queue_family_index(queue_family_index)
                 .queue_priorities(&priorities);
             let device_create_info = vk::DeviceCreateInfo::default()
                 .queue_create_infos(std::slice::from_ref(&queue_info))
                 .enabled_extension_names(&device_extension_names_raw)
-                .push_next(&mut physical_device_features)
+                .push_next(&mut physical_device_features)//.push_next(&mut local_read_features)
                 // .enabled_features(&features)
             ;
             instance
