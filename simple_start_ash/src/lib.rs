@@ -120,10 +120,6 @@ impl State {
     pub async fn new(width: u32, height: u32) -> anyhow::Result<State> {
         let entry = Entry::linked();
 
-        let app_info = vk::ApplicationInfo {
-            api_version: vk::make_api_version(0, 1, 3, 0),
-            ..Default::default()
-        };
         let app_name = unsafe { ffi::CStr::from_bytes_with_nul_unchecked(b"VulkanTriangle\0") };
 
         // apt install vulkan-validationlayers just works.
@@ -143,9 +139,9 @@ impl State {
         unsafe {
             extension_names
                 .push(ffi::CStr::from_bytes_with_nul_unchecked(b"VK_KHR_surface\0").as_ptr());
-            extension_names.push(
-                ffi::CStr::from_bytes_with_nul_unchecked(b"VK_EXT_headless_surface\0").as_ptr(),
-            );
+            // extension_names.push(
+            //     ffi::CStr::from_bytes_with_nul_unchecked(b"VK_EXT_headless_surface\0").as_ptr(),
+            // );
             extension_names
                 .push(ffi::CStr::from_bytes_with_nul_unchecked(b"VK_EXT_debug_utils\0").as_ptr());
         }
@@ -155,7 +151,7 @@ impl State {
             .application_version(0)
             .engine_name(app_name)
             .engine_version(0)
-            .api_version(vk::make_api_version(0, 1, 2, 0));
+            .api_version(vk::make_api_version(0, 1, 3, 0));
 
         // let mut extension_names =
         //     ash_window::enumerate_required_extensions(window.display_handle()?.as_raw())
@@ -199,9 +195,13 @@ impl State {
             }
             let props = unsafe { instance.get_physical_device_properties(pdevice) };
             info!(
-                "{:?}, {:?}",
+                "{:?}, {:?} -> v {}.{}.{}.{}",
                 std::ffi::CStr::from_bytes_until_nul(props.device_name.as_bytes()),
-                props.device_type
+                props.device_type,
+                ash::vk::api_version_variant(props.api_version),
+                ash::vk::api_version_major(props.api_version),
+                ash::vk::api_version_minor(props.api_version),
+                ash::vk::api_version_patch(props.api_version),
             );
             for (index, info) in
                 unsafe { instance.get_physical_device_queue_family_properties(pdevice) }
@@ -225,12 +225,19 @@ impl State {
 
         let device: ash::Device = unsafe {
             let queue_family_index = queue_family_index as u32;
-            let device_extension_names_raw = [ash::khr::swapchain::NAME.as_ptr()];
+            let device_extension_names_raw = [
+                ash::khr::swapchain::NAME.as_ptr(),
+                ash::khr::dynamic_rendering::NAME.as_ptr(),
+                ash::khr::dynamic_rendering_local_read::NAME.as_ptr(),
+            ];
             let features = vk::PhysicalDeviceFeatures {
                 shader_clip_distance: 1,
                 ..Default::default()
             };
-            let priorities = [1.0];
+            let priorities = [0.0];
+
+            let mut physical_device_features =
+                vk::PhysicalDeviceVulkan13Features::default().dynamic_rendering(true);
 
             let queue_info = vk::DeviceQueueCreateInfo::default()
                 .queue_family_index(queue_family_index)
@@ -238,24 +245,26 @@ impl State {
             let device_create_info = vk::DeviceCreateInfo::default()
                 .queue_create_infos(std::slice::from_ref(&queue_info))
                 .enabled_extension_names(&device_extension_names_raw)
-                .enabled_features(&features);
+                .push_next(&mut physical_device_features)
+                // .enabled_features(&features)
+            ;
             instance
                 .create_device(pdevice, &device_create_info, None)
                 .unwrap()
         };
         info!("device created");
         // let surface_loader = ash::khr::surface::Instance::new(&entry, &instance);
-        let headless_instance = ash::ext::headless_surface::Instance::new(&entry, &instance);
+        // let headless_instance = ash::ext::headless_surface::Instance::new(&entry, &instance);
         dbg!();
 
-        let surface = unsafe {
-            let create_info = ash::vk::HeadlessSurfaceCreateInfoEXT {
-                flags: ash::vk::HeadlessSurfaceCreateFlagsEXT::empty(),
-                ..Default::default()
-            };
-            headless_instance.create_headless_surface(&create_info, None)?
-        };
-        info!("surface: {surface:?}");
+        // let surface = unsafe {
+        //     let create_info = ash::vk::HeadlessSurfaceCreateInfoEXT {
+        //         flags: ash::vk::HeadlessSurfaceCreateFlagsEXT::empty(),
+        //         ..Default::default()
+        //     };
+        //     headless_instance.create_headless_surface(&create_info, None)?
+        // };
+        // info!("surface: {surface:?}");
         dbg!();
 
         let queue = unsafe { device.get_device_queue(queue_family_index, 0) };

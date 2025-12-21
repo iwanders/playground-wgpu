@@ -66,6 +66,18 @@ impl LocalState {
             self.device
                 .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
 
+            let rendering_info =
+                vk::RenderingInfo::default()
+                    .layer_count(1)
+                    .render_area(vk::Rect2D {
+                        offset: vk::Offset2D { x: 0, y: 0 },
+                        extent: vk::Extent2D {
+                            width: self.width,
+                            height: self.height,
+                        },
+                    });
+            self.device
+                .cmd_begin_rendering(self.draw_command_buffer, &rendering_info);
             {
                 // Source image layout, set to available for writing.
                 let image_barrier = vk::ImageMemoryBarrier::default()
@@ -105,6 +117,7 @@ impl LocalState {
                 }],
             );
 
+            self.device.cmd_end_rendering(self.draw_command_buffer);
             self.device.end_command_buffer(self.draw_command_buffer)?;
 
             let command_buffers = vec![self.draw_command_buffer];
