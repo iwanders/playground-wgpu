@@ -1,3 +1,4 @@
+use ash::{Entry, vk};
 use log::*;
 use simple_start::State;
 use zerocopy_derive::{Immutable, IntoBytes};
@@ -44,8 +45,86 @@ const VERTICES: &[Vertex] = &[
 ];
 const INDICES: &[u16] = &[0, 1, 4, 1, 2, 4, 2, 3, 4, /* padding */ 0];
 
+fn make_clear_rgba(r: u32, g: u32, b: u32, a: u32) -> vk::ClearColorValue {
+    let mut res = vk::ClearColorValue::default();
+    unsafe {
+        res.uint32[0] = r;
+        res.uint32[1] = g;
+        res.uint32[2] = b;
+        res.uint32[3] = a;
+    }
+    res
+}
+
 impl LocalState {
     pub async fn draw(&self) -> anyhow::Result<()> {
+        unsafe {
+            //
+            let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
+                .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+            self.device
+                .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
+
+            {
+                // Source image layout, set to available for writing.
+                let image_barrier = vk::ImageMemoryBarrier::default()
+                    .image(self.image)
+                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                    .old_layout(vk::ImageLayout::UNDEFINED)
+                    .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                    .subresource_range(vk::ImageSubresourceRange {
+                        aspect_mask: vk::ImageAspectFlags::COLOR,
+                        base_mip_level: 0,
+                        level_count: 1,
+                        base_array_layer: 0,
+                        layer_count: 1,
+                    });
+
+                self.device.cmd_pipeline_barrier(
+                    self.draw_command_buffer,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[image_barrier],
+                );
+            }
+            self.device.cmd_clear_color_image(
+                self.draw_command_buffer,
+                self.image,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                &make_clear_rgba(233, 23, 23, 255),
+                &[vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                }],
+            );
+
+            self.device.end_command_buffer(self.draw_command_buffer)?;
+
+            let command_buffers = vec![self.draw_command_buffer];
+            self.device
+                .reset_fences(&[self.draw_commands_reuse_fence])?;
+
+            let sema = [self.rendering_complete_semaphore];
+            let submit_info = vk::SubmitInfo::default()
+                .wait_semaphores(&sema)
+                .wait_dst_stage_mask(&[])
+                .command_buffers(&command_buffers)
+                .signal_semaphores(&[]);
+
+            self.device
+                .queue_submit(self.queue, &[submit_info], self.draw_commands_reuse_fence)?;
+            let timeout = 1_000_000; // in nanoseconds.
+            self.device
+                .wait_for_fences(&[self.draw_commands_reuse_fence], true, timeout)?;
+            // std::thread::sleep(std::time::Duration::from_secs(1));
+        }
         Ok(())
     }
 }

@@ -11,7 +11,25 @@
 //
 // hmm
 // https://github.com/Traverse-Research/gpu-allocator
-
+//
+//
+// Vulkanised 2024: Common Mistakes When Learning Vulkan - Charles Giesse
+//  https://youtu.be/0OqJtPnkfC8
+// Abstract over what you need, don't lose it.
+// Read up on what dynamic rendering in the vk api is, makes things consistent.
+//  https://youtu.be/0OqJtPnkfC8?t=1038
+//  https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/03_Drawing/00_Framebuffers.html
+// Don't support swapchain resizing.
+// Understand vkPresentMode
+// do not rely on vkQueueWaitIdle, it does not eliminate pipelining.
+//
+// Vulkanised 2025: So You Want to Write a Vulkan Renderer in 2025 - Charles Giessen
+//      https://www.youtube.com/watch?v=7CtjMfDdTdg
+// buffer device address; use pointers without descriptors.
+// use scalar block layout, mirrors the C layout.
+// timeline semaphores, monotonically increasing u64, incremented when work is done, can wait on it to be value.
+//  https://docs.vulkan.org/refpages/latest/refpages/source/vkWaitSemaphores.html
+//
 use anyhow::Context;
 use ash::ext::debug_utils;
 use ash::{Entry, vk};
@@ -226,7 +244,7 @@ impl State {
                 .unwrap()
         };
         info!("device created");
-        let surface_loader = ash::khr::surface::Instance::new(&entry, &instance);
+        // let surface_loader = ash::khr::surface::Instance::new(&entry, &instance);
         let headless_instance = ash::ext::headless_surface::Instance::new(&entry, &instance);
         dbg!();
 
@@ -271,7 +289,11 @@ impl State {
             .format(vk::Format::R8G8B8A8_UNORM)
             .extent(extent)
             .samples(vk::SampleCountFlags::TYPE_1)
-            .usage(vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSFER_SRC)
+            .usage(
+                vk::ImageUsageFlags::COLOR_ATTACHMENT
+                    | vk::ImageUsageFlags::TRANSFER_SRC
+                    | vk::ImageUsageFlags::TRANSFER_DST,
+            )
             .mip_levels(1)
             .array_layers(1)
             .image_type(vk::ImageType::TYPE_2D);
@@ -479,6 +501,9 @@ impl State {
 
             self.device
                 .queue_submit(self.queue, &[submit_info], self.draw_commands_reuse_fence)?;
+            let timeout = 1_000_000; // in nanoseconds.
+            self.device
+                .wait_for_fences(&[self.draw_commands_reuse_fence], true, timeout)?;
         };
 
         // Then, we map the memory, and copy it...
