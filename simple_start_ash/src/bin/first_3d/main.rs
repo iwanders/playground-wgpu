@@ -16,120 +16,25 @@ impl std::ops::Deref for LocalState {
         &self.0
     }
 }
-use glam::{Mat4, Vec3, Vec3A, vec3, vec3a};
+use glam::{Mat4, Vec3, Vec3A, Vec4, vec3, vec3a, vec4};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
 struct Vertex {
-    position: Vec3A,
-    normal: Vec3A,
-    color: Vec3A,
+    position: Vec4,
+    normal: Vec4,
+    color: Vec4,
 }
+const _: () = [(); 1][(core::mem::size_of::<Vertex>() == (3 * 4 * 4)) as usize ^ 1];
 impl Vertex {
-    pub const fn pnc(position: Vec3A, normal: Vec3A, color: Vec3A) -> Self {
+    pub fn pnc(position: Vec3A, normal: Vec3A, color: Vec3A) -> Self {
         Self {
-            position,
-            normal,
-            color,
+            position: vec4(position.x, position.y, position.z, 1.0),
+            normal: vec4(normal.x, normal.y, normal.z, 1.0),
+            color: vec4(color.x, color.y, color.z, 1.0),
         }
     }
 }
-
-const VERTICES: [Vertex; 16] = [
-    // The base
-    Vertex::pnc(
-        vec3a(-0.5, -0.5, -0.3),
-        vec3a(0.0, -1.0, 0.0),
-        vec3a(0.0, 0.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3a(0.5, -0.5, -0.3),
-        vec3a(0.0, -1.0, 0.0),
-        vec3a(1.0, 0.0, 0.0),
-    ),
-    Vertex::pnc(
-        vec3a(0.5, 0.5, -0.3),
-        vec3a(0.0, -1.0, 0.0),
-        vec3a(0.0, 1.0, 0.0),
-    ),
-    Vertex::pnc(
-        vec3a(-0.5, 0.5, -0.3),
-        vec3a(0.0, -1.0, 0.0),
-        vec3a(1.0, 0.0, 1.0),
-    ),
-    // Face sides have their own copy of the vertices
-    // because they have a different normal vector.
-    Vertex::pnc(
-        vec3a(-0.5, -0.5, -0.3),
-        vec3a(0.0, -0.848, 0.53),
-        vec3a(1.0, 1.0, 0.0),
-    ),
-    Vertex::pnc(
-        vec3a(0.5, -0.5, -0.3),
-        vec3a(0.0, -0.848, 0.53),
-        vec3a(1.0, 0.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3a(0.0, 0.0, 0.5),
-        vec3a(0.0, -0.848, 0.53),
-        vec3a(0.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3a(0.5, -0.5, -0.3),
-        vec3a(0.848, 0.0, 0.53),
-        vec3a(1.0, 1.0, 0.0),
-    ),
-    Vertex::pnc(
-        vec3a(0.5, 0.5, -0.3),
-        vec3a(0.848, 0.0, 0.53),
-        vec3a(1.0, 0.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3a(0.0, 0.0, 0.5),
-        vec3a(0.848, 0.0, 0.53),
-        vec3a(0.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3a(0.5, 0.5, -0.3),
-        vec3a(0.0, 0.848, 0.53),
-        vec3a(1.0, 1.0, 0.0),
-    ),
-    Vertex::pnc(
-        vec3a(-0.5, 0.5, -0.3),
-        vec3a(0.0, 0.848, 0.53),
-        vec3a(1.0, 1.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3a(0.0, 0.0, 0.5),
-        vec3a(0.0, 0.848, 0.53),
-        vec3a(1.0, 1.0, 0.0),
-    ),
-    Vertex::pnc(
-        vec3a(-0.5, 0.5, -0.3),
-        vec3a(-0.848, 0.0, 0.53),
-        vec3a(1.0, 1.0, 0.0),
-    ),
-    Vertex::pnc(
-        vec3a(-0.5, -0.5, -0.3),
-        vec3a(-0.848, 0.0, 0.53),
-        vec3a(1.0, 0.0, 1.0),
-    ),
-    Vertex::pnc(
-        vec3a(0.0, 0.0, 0.5),
-        vec3a(-0.848, 0.0, 0.53),
-        vec3a(0.0, 1.0, 1.0),
-    ),
-];
-const INDICES: &[u32] = &[
-    // Base
-    0, 1, 2, //
-    0, 2, 3, //
-    // side
-    4, 5, 6, //
-    7, 8, 9, //
-    10, 11, 12, //
-    13, 14, 15,
-];
 
 fn make_clear_rgba(r: f32, g: f32, b: f32, a: f32) -> vk::ClearColorValue {
     let mut res = vk::ClearColorValue::default();
@@ -151,9 +56,109 @@ struct FramePush {
 
 impl LocalState {
     pub fn draw(&self) -> anyhow::Result<()> {
+        #[allow(dead_code)]
+        let vertices: [Vertex; 16] = [
+            // The base
+            Vertex::pnc(
+                vec3a(-0.5, -0.5, -0.3),
+                vec3a(0.0, -1.0, 0.0),
+                vec3a(0.0, 0.0, 1.0),
+            ),
+            Vertex::pnc(
+                vec3a(0.5, -0.5, -0.3),
+                vec3a(0.0, -1.0, 0.0),
+                vec3a(1.0, 0.0, 0.0),
+            ),
+            Vertex::pnc(
+                vec3a(0.5, 0.5, -0.3),
+                vec3a(0.0, -1.0, 0.0),
+                vec3a(0.0, 1.0, 0.0),
+            ),
+            Vertex::pnc(
+                vec3a(-0.5, 0.5, -0.3),
+                vec3a(0.0, -1.0, 0.0),
+                vec3a(1.0, 0.0, 1.0),
+            ),
+            // Face sides have their own copy of the vertices
+            // because they have a different normal vector.
+            Vertex::pnc(
+                vec3a(-0.5, -0.5, -0.3),
+                vec3a(0.0, -0.848, 0.53),
+                vec3a(1.0, 1.0, 0.0),
+            ),
+            Vertex::pnc(
+                vec3a(0.5, -0.5, -0.3),
+                vec3a(0.0, -0.848, 0.53),
+                vec3a(1.0, 0.0, 1.0),
+            ),
+            Vertex::pnc(
+                vec3a(0.0, 0.0, 0.5),
+                vec3a(0.0, -0.848, 0.53),
+                vec3a(0.0, 1.0, 1.0),
+            ),
+            Vertex::pnc(
+                vec3a(0.5, -0.5, -0.3),
+                vec3a(0.848, 0.0, 0.53),
+                vec3a(1.0, 1.0, 0.0),
+            ),
+            Vertex::pnc(
+                vec3a(0.5, 0.5, -0.3),
+                vec3a(0.848, 0.0, 0.53),
+                vec3a(1.0, 0.0, 1.0),
+            ),
+            Vertex::pnc(
+                vec3a(0.0, 0.0, 0.5),
+                vec3a(0.848, 0.0, 0.53),
+                vec3a(0.0, 1.0, 1.0),
+            ),
+            Vertex::pnc(
+                vec3a(0.5, 0.5, -0.3),
+                vec3a(0.0, 0.848, 0.53),
+                vec3a(1.0, 1.0, 0.0),
+            ),
+            Vertex::pnc(
+                vec3a(-0.5, 0.5, -0.3),
+                vec3a(0.0, 0.848, 0.53),
+                vec3a(1.0, 1.0, 1.0),
+            ),
+            Vertex::pnc(
+                vec3a(0.0, 0.0, 0.5),
+                vec3a(0.0, 0.848, 0.53),
+                vec3a(1.0, 1.0, 0.0),
+            ),
+            Vertex::pnc(
+                vec3a(-0.5, 0.5, -0.3),
+                vec3a(-0.848, 0.0, 0.53),
+                vec3a(1.0, 1.0, 0.0),
+            ),
+            Vertex::pnc(
+                vec3a(-0.5, -0.5, -0.3),
+                vec3a(-0.848, 0.0, 0.53),
+                vec3a(1.0, 0.0, 1.0),
+            ),
+            Vertex::pnc(
+                vec3a(0.0, 0.0, 0.5),
+                vec3a(-0.848, 0.0, 0.53),
+                vec3a(0.0, 1.0, 1.0),
+            ),
+        ];
+        let indices: &[u32] = &[
+            // Base
+            0, 1, 2, //
+            0, 2, 3, //
+            // side
+            4, 5, 6, //
+            7, 8, 9, //
+            10, 11, 12, //
+            13, 14, 15,
+        ];
+
         let mut cam = camera::Camera::new(self.width, self.height);
-        cam.eye = (0.5, 1.7, 0.0).into();
-        cam.target = (0.0, 6.0, 1.0).into();
+        // cam.eye = (13.0, 3.7, 0.3).into();
+        // cam.target = (0.0, 6.0, 1.0).into();
+        cam.eye = (1.5, 0.3, 1.5).into();
+        // have it look at the origin
+        cam.target = (0.0, 0.0, 0.0).into();
         // let camera_mat = cam.to_view_projection_matrix();
         unsafe {
             let device_memory_properties = self
@@ -175,7 +180,7 @@ impl LocalState {
             let cache_info = vk::PipelineCacheCreateInfo::default();
             let pipeline_cache = self.device.create_pipeline_cache(&cache_info, None)?;
 
-            let index_buffer_data = INDICES;
+            let index_buffer_data = indices;
             let index_buffer_info = vk::BufferCreateInfo::default()
                 .size((index_buffer_data.len() * std::mem::size_of::<u32>()) as u64)
                 .usage(vk::BufferUsageFlags::INDEX_BUFFER)
@@ -220,7 +225,7 @@ impl LocalState {
                 .unwrap();
 
             let vertex_input_buffer_info = vk::BufferCreateInfo {
-                size: VERTICES.len() as u64 * std::mem::size_of::<Vertex>() as u64,
+                size: vertices.len() as u64 * std::mem::size_of::<Vertex>() as u64,
                 usage: vk::BufferUsageFlags::VERTEX_BUFFER,
                 sharing_mode: vk::SharingMode::EXCLUSIVE,
                 ..Default::default()
@@ -268,7 +273,7 @@ impl LocalState {
                 std::mem::align_of::<Vertex>() as u64,
                 vertex_input_buffer_memory_req.size,
             );
-            vert_align.copy_from_slice(&VERTICES);
+            vert_align.copy_from_slice(&vertices);
             self.device.unmap_memory(vertex_input_buffer_memory);
             self.device
                 .bind_buffer_memory(vertex_input_buffer, vertex_input_buffer_memory, 0)
@@ -493,7 +498,7 @@ impl LocalState {
             let image_view = self.device.create_image_view(&create_view_info, None)?;
             let mut clear_value = vk::ClearValue::default();
             unsafe {
-                clear_value.color = make_clear_rgba(0.0, 0.0, 1.0, 0.5);
+                clear_value.color = make_clear_rgba(1.0, 0.0, 0.0, 0.2);
             }
             let color_attachment_info = vk::RenderingAttachmentInfo::default()
                 .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
@@ -604,7 +609,7 @@ impl LocalState {
             if DRAW_INDICED {
                 self.device.cmd_draw_indexed(
                     self.draw_command_buffer,
-                    INDICES.len() as _,
+                    indices.len() as _,
                     1,
                     0,
                     0,
@@ -612,7 +617,7 @@ impl LocalState {
                 );
             } else {
                 self.device
-                    .cmd_draw(self.draw_command_buffer, VERTICES.len() as _, 1, 0, 0);
+                    .cmd_draw(self.draw_command_buffer, vertices.len() as _, 1, 0, 0);
             }
             self.device.cmd_end_rendering(self.draw_command_buffer);
             self.device.end_command_buffer(self.draw_command_buffer)?;
