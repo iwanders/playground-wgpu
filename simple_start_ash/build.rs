@@ -24,6 +24,7 @@ fn main() {
 
     for file in slang_files.iter() {
         println!("cargo::rerun-if-changed={}", file);
+        // eprintln!("cargo::rerun-if-changed={}", file);
         let file_path = std::path::Path::new(&file);
         // let file_dirname = file_path.parent().unwrap();
         let path_as_spv = file_path.with_extension("spv");

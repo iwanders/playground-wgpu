@@ -259,17 +259,22 @@ impl State {
             let device_extension_names_raw = [
                 ash::khr::swapchain::NAME.as_ptr(),
                 ash::khr::dynamic_rendering::NAME.as_ptr(),
+                // ash::khr::buffer_device_address::NAME.as_ptr(),
                 // ash::ext::shader_object::NAME.as_ptr()
                 // ash::khr::dynamic_rendering_local_read::NAME.as_ptr(),
             ];
             let features = vk::PhysicalDeviceFeatures {
                 shader_clip_distance: 1,
+
                 ..Default::default()
             };
             let priorities = [0.0];
 
-            let mut physical_device_features =
+            let mut physical_device_features13 =
                 vk::PhysicalDeviceVulkan13Features::default().dynamic_rendering(true);
+
+            let mut physical_device_features12 =
+                vk::PhysicalDeviceVulkan12Features::default().buffer_device_address(true);
 
             // let mut local_read_features =
             //     vk::PhysicalDeviceDynamicRenderingLocalReadFeaturesKHR::default()
@@ -281,7 +286,8 @@ impl State {
             let device_create_info = vk::DeviceCreateInfo::default()
                 .queue_create_infos(std::slice::from_ref(&queue_info))
                 .enabled_extension_names(&device_extension_names_raw)
-                .push_next(&mut physical_device_features)//.push_next(&mut local_read_features)
+                .push_next(&mut physical_device_features12)//.push_next(&mut local_read_features)
+                .push_next(&mut physical_device_features13)
                 // .enabled_features(&features)
             ;
             instance

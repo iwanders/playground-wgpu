@@ -4,9 +4,8 @@ use anyhow::Context;
 use ash::{Entry, vk};
 use log::*;
 use simple_start::State;
-use zerocopy_derive::{Immutable, IntoBytes};
-
-// https://sotrh.github.io/learn-wgpu/beginner/tutorial4-buffer/
+use zerocopy::{Immutable, IntoBytes};
+mod camera;
 
 struct LocalState(pub State);
 
@@ -17,32 +16,120 @@ impl std::ops::Deref for LocalState {
         &self.0
     }
 }
+use glam::{Mat4, Vec3, Vec3A, vec3, vec3a};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
 struct Vertex {
-    position: [f32; 4],
-    color: [f32; 4],
+    position: Vec3A,
+    normal: Vec3A,
+    color: Vec3A,
 }
-const VERTICES: &[Vertex] = &[
-    Vertex {
-        position: [-1.0, 1.0, 0.0, 1.0],
-        color: [0.0, 1.0, 0.0, 1.0],
-    },
-    Vertex {
-        position: [1.0, 1.0, 0.0, 1.0],
-        color: [0.0, 0.0, 1.0, 1.0],
-    },
-    Vertex {
-        position: [0.0, -1.0, 0.0, 1.0],
-        color: [1.0, 0.0, 0.0, 1.0],
-    },
-    Vertex {
-        position: [0.5, -1.0, 0.0, 1.0],
-        color: [1.0, 0.0, 0.0, 1.0],
-    },
+impl Vertex {
+    pub const fn pnc(position: Vec3A, normal: Vec3A, color: Vec3A) -> Self {
+        Self {
+            position,
+            normal,
+            color,
+        }
+    }
+}
+
+const VERTICES: [Vertex; 16] = [
+    // The base
+    Vertex::pnc(
+        vec3a(-0.5, -0.5, -0.3),
+        vec3a(0.0, -1.0, 0.0),
+        vec3a(0.0, 0.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3a(0.5, -0.5, -0.3),
+        vec3a(0.0, -1.0, 0.0),
+        vec3a(1.0, 0.0, 0.0),
+    ),
+    Vertex::pnc(
+        vec3a(0.5, 0.5, -0.3),
+        vec3a(0.0, -1.0, 0.0),
+        vec3a(0.0, 1.0, 0.0),
+    ),
+    Vertex::pnc(
+        vec3a(-0.5, 0.5, -0.3),
+        vec3a(0.0, -1.0, 0.0),
+        vec3a(1.0, 0.0, 1.0),
+    ),
+    // Face sides have their own copy of the vertices
+    // because they have a different normal vector.
+    Vertex::pnc(
+        vec3a(-0.5, -0.5, -0.3),
+        vec3a(0.0, -0.848, 0.53),
+        vec3a(1.0, 1.0, 0.0),
+    ),
+    Vertex::pnc(
+        vec3a(0.5, -0.5, -0.3),
+        vec3a(0.0, -0.848, 0.53),
+        vec3a(1.0, 0.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3a(0.0, 0.0, 0.5),
+        vec3a(0.0, -0.848, 0.53),
+        vec3a(0.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3a(0.5, -0.5, -0.3),
+        vec3a(0.848, 0.0, 0.53),
+        vec3a(1.0, 1.0, 0.0),
+    ),
+    Vertex::pnc(
+        vec3a(0.5, 0.5, -0.3),
+        vec3a(0.848, 0.0, 0.53),
+        vec3a(1.0, 0.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3a(0.0, 0.0, 0.5),
+        vec3a(0.848, 0.0, 0.53),
+        vec3a(0.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3a(0.5, 0.5, -0.3),
+        vec3a(0.0, 0.848, 0.53),
+        vec3a(1.0, 1.0, 0.0),
+    ),
+    Vertex::pnc(
+        vec3a(-0.5, 0.5, -0.3),
+        vec3a(0.0, 0.848, 0.53),
+        vec3a(0.0, 1.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3a(0.0, 0.0, 0.5),
+        vec3a(0.0, 0.848, 0.53),
+        vec3a(1.0, 1.0, 0.0),
+    ),
+    Vertex::pnc(
+        vec3a(-0.5, 0.5, -0.3),
+        vec3a(-0.848, 0.0, 0.53),
+        vec3a(1.0, 1.0, 0.0),
+    ),
+    Vertex::pnc(
+        vec3a(-0.5, -0.5, -0.3),
+        vec3a(-0.848, 0.0, 0.53),
+        vec3a(1.0, 0.0, 1.0),
+    ),
+    Vertex::pnc(
+        vec3a(0.0, 0.0, 0.5),
+        vec3a(-0.848, 0.0, 0.53),
+        vec3a(0.0, 1.0, 1.0),
+    ),
 ];
-const INDICES: &[u32] = &[0, 1, 3];
+const INDICES: &[u32] = &[
+    // Base
+    0, 1, 2, //
+    0, 2, 3, //
+    // side
+    4, 5, 6, //
+    7, 8, 9, //
+    10, 11, 12, //
+    13, 14, 15,
+];
 
 fn make_clear_rgba(r: f32, g: f32, b: f32, a: f32) -> vk::ClearColorValue {
     let mut res = vk::ClearColorValue::default();
@@ -56,8 +143,18 @@ fn make_clear_rgba(r: f32, g: f32, b: f32, a: f32) -> vk::ClearColorValue {
     res
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
+struct FramePush {
+    camera: Mat4,
+}
+
 impl LocalState {
     pub fn draw(&self) -> anyhow::Result<()> {
+        let mut cam = camera::Camera::new(self.width, self.height);
+        cam.eye = (0.0, 1.7, 0.0).into();
+        cam.target = (0.0, 0.0, 1.0).into();
+        // let camera_mat = cam.to_view_projection_matrix();
         unsafe {
             let device_memory_properties = self
                 .instance
@@ -66,10 +163,11 @@ impl LocalState {
             // https://github.com/SaschaWillems/Vulkan/blob/b9f0ac91d2adccc3055a904d3a8f6553b10ff6cd/examples/renderheadless/renderheadless.cpp#L508
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp#L301
             // https://github.com/ash-rs/ash/blob/0.38.0/ash-examples/src/bin/triangle.rs#L224C1-L230
-            let constant_range =
-                vk::PushConstantRange::default().stage_flags(vk::ShaderStageFlags::VERTEX);
-            let layout_create_info = vk::PipelineLayoutCreateInfo::default();
-            // .push_constant_ranges(std::slice::from_ref(&constant_range));
+            let constant_range = vk::PushConstantRange::default()
+                .stage_flags(vk::ShaderStageFlags::VERTEX)
+                .size(std::mem::size_of::<FramePush>() as u32);
+            let layout_create_info = vk::PipelineLayoutCreateInfo::default()
+                .push_constant_ranges(std::slice::from_ref(&constant_range));
             let layout = self
                 .device
                 .create_pipeline_layout(&layout_create_info, None)?;
@@ -184,17 +282,17 @@ impl LocalState {
                     let data = include_bytes!("./triangle.spv")[..].to_vec();
                     (data.clone(), data)
                 } else {
-                    let vert_bytes = simple_start::shader_util::compile_shader(
-                        include_str!("./triangle.vert"),
-                        naga::ShaderStage::Vertex,
-                    )?;
-                    let frag_bytes = simple_start::shader_util::compile_shader(
-                        include_str!("./triangle.frag"),
-                        naga::ShaderStage::Fragment,
-                    )?;
+                    // let vert_bytes = simple_start::shader_util::compile_shader(
+                    //     include_str!("./triangle.vert"),
+                    //     naga::ShaderStage::Vertex,
+                    // )?;
+                    // let frag_bytes = simple_start::shader_util::compile_shader(
+                    //     include_str!("./triangle.frag"),
+                    //     naga::ShaderStage::Fragment,
+                    // )?;
                     // use zerocopy::IntoBytes;
                     // std::fs::write("/tmp/foo.bin", &z.as_bytes()).expect("Unable to write file");
-                    (vert_bytes, frag_bytes)
+                    (todo!("missing shader file"), todo!("missing shader file"))
                 }
             } else {
                 // spv files from https://github.com/ash-rs/ash/tree/0.38.0/ash-examples/shader/triangle
@@ -264,6 +362,12 @@ impl LocalState {
                 },
                 vk::VertexInputAttributeDescription {
                     location: 1,
+                    binding: 0,
+                    format: vk::Format::R32G32B32A32_SFLOAT,
+                    offset: std::mem::offset_of!(Vertex, normal) as u32,
+                },
+                vk::VertexInputAttributeDescription {
+                    location: 2,
                     binding: 0,
                     format: vk::Format::R32G32B32A32_SFLOAT,
                     offset: std::mem::offset_of!(Vertex, color) as u32,
@@ -480,9 +584,22 @@ impl LocalState {
             self.device
                 .cmd_begin_rendering(self.draw_command_buffer, &rendering_info);
 
+            // send the push constants.
+            //
+            let pushdata = FramePush {
+                camera: cam.to_view_projection_matrix(),
+            };
+
+            self.device.cmd_push_constants(
+                self.draw_command_buffer,
+                layout,
+                vk::ShaderStageFlags::VERTEX,
+                0,
+                pushdata.as_bytes(),
+            );
+
             // Oh, we still do need a pipeline here... just no render passess.
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
-            //
             const DRAW_INDICED: bool = true;
             if DRAW_INDICED {
                 self.device.cmd_draw_indexed(
@@ -523,9 +640,9 @@ impl LocalState {
 }
 
 fn run_main() -> std::result::Result<(), anyhow::Error> {
-    let state = LocalState(State::new(256, 256)?);
+    let state = LocalState(State::new(512, 512)?);
     state.draw()?;
-    state.save("/tmp/triangle_2d.png")?;
+    state.save("/tmp/first_3d.png")?;
 
     Ok(())
 }
