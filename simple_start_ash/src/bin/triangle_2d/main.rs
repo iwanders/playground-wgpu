@@ -57,12 +57,11 @@ fn make_clear_rgba(r: f32, g: f32, b: f32, a: f32) -> vk::ClearColorValue {
 }
 
 impl LocalState {
-    pub async fn draw(&self) -> anyhow::Result<()> {
+    pub fn draw(&self) -> anyhow::Result<()> {
         unsafe {
-            let device_memory_properties = unsafe {
-                self.instance
-                    .get_physical_device_memory_properties(self.pdevice)
-            };
+            let device_memory_properties = self
+                .instance
+                .get_physical_device_memory_properties(self.pdevice);
             // Lets build a pipeline!
             // https://github.com/SaschaWillems/Vulkan/blob/b9f0ac91d2adccc3055a904d3a8f6553b10ff6cd/examples/renderheadless/renderheadless.cpp#L508
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp#L301
@@ -523,10 +522,10 @@ impl LocalState {
     }
 }
 
-async fn async_main() -> std::result::Result<(), anyhow::Error> {
-    let mut state = LocalState(State::new(256, 256).await?);
-    state.draw().await?;
-    state.save("/tmp/triangle_2d.png").await?;
+fn run_main() -> std::result::Result<(), anyhow::Error> {
+    let state = LocalState(State::new(256, 256)?);
+    state.draw()?;
+    state.save("/tmp/triangle_2d.png")?;
 
     Ok(())
 }
@@ -537,7 +536,7 @@ pub fn main() -> std::result::Result<(), anyhow::Error> {
         .filter_level(log::LevelFilter::Info)
         // .filter_level(log::LevelFilter::max())
         .try_init()?;
-    pollster::block_on(async_main())?;
+    run_main()?;
     println!("Hello, world! ");
     Ok(())
 }

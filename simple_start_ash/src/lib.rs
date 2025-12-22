@@ -148,7 +148,7 @@ pub fn find_memorytype_index(
 
 impl State {
     // ...
-    pub async fn new(width: u32, height: u32) -> anyhow::Result<State> {
+    pub fn new(width: u32, height: u32) -> anyhow::Result<State> {
         let entry = Entry::linked();
 
         let app_name = unsafe { ffi::CStr::from_bytes_with_nul_unchecked(b"VulkanTriangle\0") };
@@ -398,7 +398,7 @@ impl State {
         })
     }
 
-    pub async fn save<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+    pub fn save<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         let p: &Path = path.as_ref();
 
         // extract data from the memory behind the image? >_<
