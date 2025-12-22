@@ -35,6 +35,7 @@ VertexOut vertexMain(VertexIn input, uniform FramePush   push_data)
 {
 	VertexOut output;
 	output.color = input.color;
+	// output.color[0]  =1.0;
 	output.pos = mul(push_data.camera,  input.pos);
 	// output.pos = mul(input.pos,  push_data.camera);
 	return output;
@@ -54,5 +55,5 @@ void main() {
 [shader("fragment")]
 float4 fragmentMain(VertexOut input)
 {
-    return input.color;
+    return input.color ;
 }

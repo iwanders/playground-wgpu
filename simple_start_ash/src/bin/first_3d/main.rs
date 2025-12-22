@@ -97,7 +97,7 @@ const VERTICES: [Vertex; 16] = [
     Vertex::pnc(
         vec3a(-0.5, 0.5, -0.3),
         vec3a(0.0, 0.848, 0.53),
-        vec3a(0.0, 1.0, 1.0),
+        vec3a(1.0, 1.0, 1.0),
     ),
     Vertex::pnc(
         vec3a(0.0, 0.0, 0.5),
@@ -152,8 +152,8 @@ struct FramePush {
 impl LocalState {
     pub fn draw(&self) -> anyhow::Result<()> {
         let mut cam = camera::Camera::new(self.width, self.height);
-        cam.eye = (0.0, 1.7, 0.0).into();
-        cam.target = (0.0, 0.0, 1.0).into();
+        cam.eye = (0.5, 1.7, 0.0).into();
+        cam.target = (0.0, 6.0, 1.0).into();
         // let camera_mat = cam.to_view_projection_matrix();
         unsafe {
             let device_memory_properties = self

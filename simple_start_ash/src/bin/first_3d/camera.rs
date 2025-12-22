@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3, vec3};
+use glam::{Mat4, Vec3, vec3, vec4};
 use log::*;
 #[derive(Copy, Clone, Debug)]
 pub struct Camera {
@@ -43,12 +43,37 @@ impl Camera {
             amount_down: 0.0,
         }
     }
+
+    fn vulkan_perspective(fov_rad: f32, aspect_ratio: f32, z_near: f32, z_far: f32) -> Mat4 {
+        let g = 1.0 / (fov_rad * 0.5).tan();
+        let k = z_far / (z_far - z_near);
+
+        // return mat4(g / s,  0.0f,   0.0f,   0.0f,
+        //              0.0f,  g,      0.0f,   0.0f,
+        //              0.0f,  0.0f,   k,      -near * k,
+        //              0.0f,  0.0f,   1.0f,   0.0f);
+        Mat4::from_cols_array_2d(&[
+            [g / aspect_ratio, 0.0, 0.0, 0.0],
+            [0.0, g, 0.0, 0.0],
+            [0.0, 0.0, k, -z_near * k],
+            [0.0, 0.0, 1.0, 0.0],
+        ])
+        .transpose()
+    }
+
     pub fn to_view_projection_matrix(&self) -> Mat4 {
         // https://github.com/bitshifter/glam-rs/issues/569
         // Okay, so this doesn't actually do what we need :<
         //let view = Mat4::look_at_rh(self.eye, self.target, self.up);
         info!("self: {:?}", self);
-        let proj = Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
+        // let mut proj =
+        //     Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
+        // info!("proj: {:?}", proj);
+        let mut proj =
+            Self::vulkan_perspective(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
+        // proj.w_axis = vec4(0.0, 0.0, 1.0, 0.0);
+        proj.y_axis.y *= -1.0;
+        info!("proj: {:#?}", proj);
         let view = Mat4::look_at_rh(self.eye, self.target, self.up);
         return proj * view;
     }
