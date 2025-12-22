@@ -19,8 +19,8 @@
 // Read up on what dynamic rendering in the vk api is, makes things consistent.
 //  https://youtu.be/0OqJtPnkfC8?t=1038
 //  https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/03_Drawing/00_Framebuffers.html
-//  Dynamic rendering does away with the pipeline.
-//    https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
+//  Dynamic rendering does away with the render passess.
+//    https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/
 // Don't support swapchain resizing.
 // Understand vkPresentMode
 // do not rely on vkQueueWaitIdle, it does not eliminate pipelining.
@@ -31,6 +31,7 @@
 // use scalar block layout, mirrors the C layout.
 // timeline semaphores, monotonically increasing u64, incremented when work is done, can wait on it to be value.
 //  https://docs.vulkan.org/refpages/latest/refpages/source/vkWaitSemaphores.html
+//  https://github.com/KhronosGroup/Vulkan-Samples/tree/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/timeline_semaphore
 //
 // From A Gentle Introduction to Vulkan for Rendering and Compute Workloads - Vulkan Course
 //  https://youtu.be/nD83r06b5NE?t=4435
@@ -41,6 +42,7 @@
 //     https://github.com/KhronosGroup/Vulkan-Docs/blob/main/proposals/VK_EXT_shader_object.adoc
 //       no multiview
 //     https://docs.vulkan.org/spec/latest/chapters/shaders.html#shaders-objects-state
+//     https://github.com/KhronosGroup/Vulkan-Samples/tree/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/shader_object
 //
 //
 // Some good diagrams here: https://github.com/David-DiGioia/vulkan-diagrams

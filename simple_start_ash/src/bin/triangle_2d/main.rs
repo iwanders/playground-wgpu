@@ -180,7 +180,7 @@ impl LocalState {
             const COMPILE_SHADERS: bool = true;
             const USE_SLANG_SHADER: bool = true;
 
-            let (vertex_spv_bytes, frag_spv_file) = if COMPILE_SHADERS {
+            let (vertex_spv_bytes, frag_spv_file): (Vec<u8>, Vec<u8>) = if COMPILE_SHADERS {
                 if USE_SLANG_SHADER {
                     let data = include_bytes!("./triangle.spv")[..].to_vec();
                     (data.clone(), data)
@@ -200,8 +200,10 @@ impl LocalState {
             } else {
                 // spv files from https://github.com/ash-rs/ash/tree/0.38.0/ash-examples/shader/triangle
                 (
-                    include_bytes!("./vert.spv")[..].to_vec(),
-                    include_bytes!("./frag.spv")[..].to_vec(),
+                    todo!("missing shader file"),
+                    todo!("missing shader file"),
+                    // include_bytes!("./vert.spv")[..].to_vec(),
+                    // include_bytes!("./frag.spv")[..].to_vec(),
                 )
             };
             let mut vertex_spv_file = Cursor::new(&vertex_spv_bytes);
