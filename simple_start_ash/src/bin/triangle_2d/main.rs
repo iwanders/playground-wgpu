@@ -178,19 +178,25 @@ impl LocalState {
                 .unwrap();
 
             const COMPILE_SHADERS: bool = true;
+            const USE_SLANG_SHADER: bool = true;
 
             let (vertex_spv_bytes, frag_spv_file) = if COMPILE_SHADERS {
-                let vert_bytes = simple_start::shader_util::compile_shader(
-                    include_str!("./triangle.vert"),
-                    naga::ShaderStage::Vertex,
-                )?;
-                let frag_bytes = simple_start::shader_util::compile_shader(
-                    include_str!("./triangle.frag"),
-                    naga::ShaderStage::Fragment,
-                )?;
-                // use zerocopy::IntoBytes;
-                // std::fs::write("/tmp/foo.bin", &z.as_bytes()).expect("Unable to write file");
-                (vert_bytes, frag_bytes)
+                if USE_SLANG_SHADER {
+                    let data = include_bytes!("./triangle.spv")[..].to_vec();
+                    (data.clone(), data)
+                } else {
+                    let vert_bytes = simple_start::shader_util::compile_shader(
+                        include_str!("./triangle.vert"),
+                        naga::ShaderStage::Vertex,
+                    )?;
+                    let frag_bytes = simple_start::shader_util::compile_shader(
+                        include_str!("./triangle.frag"),
+                        naga::ShaderStage::Fragment,
+                    )?;
+                    // use zerocopy::IntoBytes;
+                    // std::fs::write("/tmp/foo.bin", &z.as_bytes()).expect("Unable to write file");
+                    (vert_bytes, frag_bytes)
+                }
             } else {
                 // spv files from https://github.com/ash-rs/ash/tree/0.38.0/ash-examples/shader/triangle
                 (
@@ -219,18 +225,26 @@ impl LocalState {
                 .create_shader_module(&frag_shader_info, None)
                 .expect("Fragment shader module error");
 
-            let shader_entry_name = std::ffi::CStr::from_bytes_with_nul_unchecked(b"main\0");
+            let (vert_shader_name, frag_shader_name) = if USE_SLANG_SHADER {
+                let vertex_name = std::ffi::CStr::from_bytes_with_nul_unchecked(b"vertexMain\0");
+                let fragment_main =
+                    std::ffi::CStr::from_bytes_with_nul_unchecked(b"fragmentMain\0");
+                (vertex_name, fragment_main)
+            } else {
+                let main = std::ffi::CStr::from_bytes_with_nul_unchecked(b"main\0");
+                (main, main)
+            };
             let shader_stage_create_infos = [
                 vk::PipelineShaderStageCreateInfo {
                     module: vertex_shader_module,
-                    p_name: shader_entry_name.as_ptr(),
+                    p_name: vert_shader_name.as_ptr(),
                     stage: vk::ShaderStageFlags::VERTEX,
                     ..Default::default()
                 },
                 vk::PipelineShaderStageCreateInfo {
                     s_type: vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
                     module: fragment_shader_module,
-                    p_name: shader_entry_name.as_ptr(),
+                    p_name: frag_shader_name.as_ptr(),
                     stage: vk::ShaderStageFlags::FRAGMENT,
                     ..Default::default()
                 },

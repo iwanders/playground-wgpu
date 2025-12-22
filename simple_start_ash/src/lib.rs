@@ -55,6 +55,8 @@
 //
 // What's VK_EXT_descriptor_indexing ? from https://amini-allight.org/post/vknew-modern-vulkan-with-descriptor-indexing-dynamic-rendering-and-shader-objects
 //
+// https://github.com/SaschaWillems/Vulkan
+//
 use anyhow::Context;
 use ash::ext::debug_utils;
 use ash::{Entry, vk};
