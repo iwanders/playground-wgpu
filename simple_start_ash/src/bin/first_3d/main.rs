@@ -21,16 +21,16 @@ use glam::{Mat4, Vec3, Vec3A, Vec4, vec3, vec3a, vec4};
 #[repr(C)]
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
 struct Vertex {
-    position: Vec4,
-    normal: Vec4,
+    position: Vec3A,
+    normal: Vec3A,
     color: Vec4,
 }
 const _: () = [(); 1][(core::mem::size_of::<Vertex>() == (3 * 4 * 4)) as usize ^ 1];
 impl Vertex {
     pub fn pnc(position: Vec3A, normal: Vec3A, color: Vec3A) -> Self {
         Self {
-            position: vec4(position.x, position.y, position.z, 1.0),
-            normal: vec4(normal.x, normal.y, normal.z, 1.0),
+            position: vec3a(position.x, position.y, position.z),
+            normal: vec3a(normal.x, normal.y, normal.z),
             color: vec4(color.x, color.y, color.z, 1.0),
         }
     }
@@ -156,7 +156,7 @@ impl LocalState {
         let mut cam = camera::Camera::new(self.width, self.height);
         // cam.eye = (13.0, 3.7, 0.3).into();
         // cam.target = (0.0, 6.0, 1.0).into();
-        cam.eye = (1.5, 0.3, 1.5).into();
+        cam.eye = (1.0, 0.7, 0.5).into();
         // have it look at the origin
         cam.target = (0.0, 0.0, 0.0).into();
         // let camera_mat = cam.to_view_projection_matrix();

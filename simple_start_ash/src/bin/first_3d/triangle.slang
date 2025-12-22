@@ -19,7 +19,7 @@ void main() {
 */
 struct VertexIn
 {
-    [[vk::location(0)]] float4 pos;
+    [[vk::location(0)]] float3 pos;
     [[vk::location(1)]] float4 normal;
     [[vk::location(2)]] float4 color;
 };
@@ -34,9 +34,9 @@ struct VertexOut
 VertexOut vertexMain(VertexIn input, uniform FramePush   push_data)
 {
 	VertexOut output;
-	output.color = input.color;
+	output.color =  input.color ;
 	// output.color[0]  =1.0;
-	output.pos = mul(push_data.camera,  input.pos);
+	output.pos = mul(push_data.camera,  float4(input.pos, 1.0));
 	// output.pos = mul(input.pos,  push_data.camera);
 	return output;
 }
