@@ -79,7 +79,7 @@ impl LocalState {
 
             let index_buffer_data = INDICES;
             let index_buffer_info = vk::BufferCreateInfo::default()
-                .size(std::mem::size_of_val(&index_buffer_data) as u64)
+                .size(std::mem::size_of_val(index_buffer_data) as u64)
                 .usage(vk::BufferUsageFlags::INDEX_BUFFER)
                 .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
