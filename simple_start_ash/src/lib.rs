@@ -91,12 +91,22 @@ use parking_lot::Mutex;
 //
 // Many things are handles only. Lets just wrap the ones that make sense? Goal is a reasonable level of 'safety' and abstraction, but not
 // strictly correct, since that's a very hard goal to achieve in a performant way?
+//
+// How do we clear this all up correctly... maybe that's where that gpu allocator comes in for memory at least? Since they
+// are all tied to that?
 
 /// A context that holds the key functionality to interact with the vulkan stuff?
 pub struct Ctx {
     pub instance: Mutex<ash::Instance>,
     pub device: Mutex<ash::Device>,
     pub pdevice: Mutex<ash::vk::PhysicalDevice>,
+}
+impl Drop for Ctx {
+    fn drop(&mut self) {
+        let instance = self.instance.lock();
+        let device = self.device.lock();
+        let pdevice = self.pdevice.lock();
+    }
 }
 pub type CtxPtr = Arc<Ctx>;
 impl Ctx {
@@ -139,11 +149,18 @@ impl Ctx {
         })
     }
 
-    pub fn record_command_buffer<'a, 'b>(&'a self) -> CommandBufferWriter<'a> {
-        CommandBufferWriter {
-            device: self.device.lock(),
+    pub fn record_command_buffer<'a, 'b>(
+        &'a self,
+
+        buffer: &vk::CommandBuffer,
+        info: &vk::CommandBufferBeginInfo,
+    ) -> Result<CommandBufferWriter<'a>, vk::Result> {
+        let device = self.device.lock();
+        unsafe { device.begin_command_buffer(*buffer, &info)? };
+        Ok(CommandBufferWriter {
+            device,
             finished: false,
-        }
+        })
     }
 }
 
@@ -181,14 +198,14 @@ impl<'a> CommandBufferWriter<'a> {
 
     pub fn imagebuf_layout_barrier<'b, T>(
         &self,
-        buffer: T,
+        command_buffer: T,
         image: &ImageBuf,
         old_layout: vk::ImageLayout,
         new_layout: vk::ImageLayout,
     ) where
         T: Into<&'b vk::CommandBuffer>,
     {
-        let buffer: &'b vk::CommandBuffer = buffer.into();
+        let command_buffer: &'b vk::CommandBuffer = command_buffer.into();
         // Source image layout.
         let image_barrier = vk::ImageMemoryBarrier::default()
             .image(image.image)
@@ -199,7 +216,7 @@ impl<'a> CommandBufferWriter<'a> {
 
         unsafe {
             self.cmd_pipeline_barrier(
-                *buffer,
+                *command_buffer,
                 vk::PipelineStageFlags::TRANSFER,
                 vk::PipelineStageFlags::TRANSFER,
                 vk::DependencyFlags::empty(),
@@ -641,14 +658,19 @@ impl State {
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
         )?;
 
-        let writer = self.ctx.record_command_buffer();
+        let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+        let writer = self
+            .ctx
+            .record_command_buffer(&self.draw_command_buffer, &command_buffer_begin_info)?;
         // Execute commands.
         unsafe {
             //
-            let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
-                .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+            // let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
+            //     .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
-            writer.begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
+            // writer.begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
 
             writer.imagebuf_layout_barrier(
                 &self.draw_command_buffer,
@@ -663,31 +685,6 @@ impl State {
                 vk::ImageLayout::UNDEFINED,
                 vk::ImageLayout::TRANSFER_DST_OPTIMAL,
             );
-            if false {
-                // Destination image layout.
-                let image_barrier = vk::ImageMemoryBarrier::default()
-                    .image(image.image)
-                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-                    .old_layout(vk::ImageLayout::UNDEFINED)
-                    .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
-                    .subresource_range(vk::ImageSubresourceRange {
-                        aspect_mask: vk::ImageAspectFlags::COLOR,
-                        base_mip_level: 0,
-                        level_count: 1,
-                        base_array_layer: 0,
-                        layer_count: 1,
-                    });
-
-                self.device.cmd_pipeline_barrier(
-                    self.draw_command_buffer,
-                    vk::PipelineStageFlags::TRANSFER,
-                    vk::PipelineStageFlags::TRANSFER,
-                    vk::DependencyFlags::empty(),
-                    &[],
-                    &[],
-                    &[image_barrier],
-                );
-            }
 
             // Do some commands here...
             let region = vk::ImageCopy::default()

@@ -503,8 +503,11 @@ impl LocalState {
             let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
                 .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
-            self.device
-                .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
+            let writer = self
+                .ctx
+                .record_command_buffer(&self.draw_command_buffer, &command_buffer_begin_info)?;
+            // self.device
+            //     .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
 
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering_local_read/dynamic_rendering_local_read.cpp#L878C39-L878C60
 
@@ -566,56 +569,19 @@ impl LocalState {
                 .depth_attachment(&depth_attachment_info);
 
             // do things.
-            {
-                // Source image layout, set to available for writing.
-                let image_barrier = vk::ImageMemoryBarrier::default()
-                    .image(self.image.image)
-                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-                    .old_layout(vk::ImageLayout::UNDEFINED)
-                    .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
-                    .subresource_range(vk::ImageSubresourceRange {
-                        aspect_mask: vk::ImageAspectFlags::COLOR,
-                        base_mip_level: 0,
-                        level_count: 1,
-                        base_array_layer: 0,
-                        layer_count: 1,
-                    });
+            writer.imagebuf_layout_barrier(
+                &self.draw_command_buffer,
+                &self.image,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            );
 
-                self.device.cmd_pipeline_barrier(
-                    self.draw_command_buffer,
-                    vk::PipelineStageFlags::TRANSFER,
-                    vk::PipelineStageFlags::TRANSFER,
-                    vk::DependencyFlags::empty(),
-                    &[],
-                    &[],
-                    &[image_barrier],
-                );
-            }
-            {
-                // Source image layout, set to available for writing.
-                let image_barrier = vk::ImageMemoryBarrier::default()
-                    .image(self.depth_image.image)
-                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-                    .old_layout(vk::ImageLayout::UNDEFINED)
-                    .new_layout(vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL)
-                    .subresource_range(vk::ImageSubresourceRange {
-                        aspect_mask: vk::ImageAspectFlags::DEPTH,
-                        base_mip_level: 0,
-                        level_count: 1,
-                        base_array_layer: 0,
-                        layer_count: 1,
-                    });
-
-                self.device.cmd_pipeline_barrier(
-                    self.draw_command_buffer,
-                    vk::PipelineStageFlags::TRANSFER,
-                    vk::PipelineStageFlags::TRANSFER,
-                    vk::DependencyFlags::empty(),
-                    &[],
-                    &[],
-                    &[image_barrier],
-                );
-            }
+            writer.imagebuf_layout_barrier(
+                &self.draw_command_buffer,
+                &self.depth_image,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
+            );
 
             let viewport = vk::Viewport::default()
                 .width(self.width as f32)
@@ -623,42 +589,33 @@ impl LocalState {
                 .min_depth(0.0)
                 .max_depth(1.0);
 
-            self.device.cmd_set_viewport(
-                self.draw_command_buffer,
-                0,
-                std::slice::from_ref(&viewport),
-            );
+            writer.cmd_set_viewport(self.draw_command_buffer, 0, std::slice::from_ref(&viewport));
 
             let scissors = vk::Rect2D::default().extent(
                 vk::Extent2D::default()
                     .width(self.width)
                     .height(self.height),
             );
-            self.device.cmd_set_scissor(
-                self.draw_command_buffer,
-                0,
-                std::slice::from_ref(&scissors),
-            );
-            self.device.cmd_bind_vertex_buffers(
+            writer.cmd_set_scissor(self.draw_command_buffer, 0, std::slice::from_ref(&scissors));
+            writer.cmd_bind_vertex_buffers(
                 self.draw_command_buffer,
                 0,
                 &[vertex_input_buffer],
                 &[0],
             );
-            self.device.cmd_bind_index_buffer(
+            writer.cmd_bind_index_buffer(
                 self.draw_command_buffer,
                 index_buffer,
                 0,
                 vk::IndexType::UINT32,
             );
 
-            self.device.cmd_bind_pipeline(
+            writer.cmd_bind_pipeline(
                 self.draw_command_buffer,
                 vk::PipelineBindPoint::GRAPHICS,
                 pipeline,
             );
-            self.device
-                .cmd_begin_rendering(self.draw_command_buffer, &rendering_info);
+            writer.cmd_begin_rendering(self.draw_command_buffer, &rendering_info);
 
             // send the push constants.
             //
@@ -666,7 +623,7 @@ impl LocalState {
                 camera: cam.to_view_projection_matrix(),
             };
 
-            self.device.cmd_push_constants(
+            writer.cmd_push_constants(
                 self.draw_command_buffer,
                 layout,
                 vk::ShaderStageFlags::VERTEX,
@@ -678,20 +635,14 @@ impl LocalState {
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
             const DRAW_INDICED: bool = true;
             if DRAW_INDICED {
-                self.device.cmd_draw_indexed(
-                    self.draw_command_buffer,
-                    indices.len() as _,
-                    1,
-                    0,
-                    0,
-                    0,
-                );
+                writer.cmd_draw_indexed(self.draw_command_buffer, indices.len() as _, 1, 0, 0, 0);
             } else {
                 self.device
                     .cmd_draw(self.draw_command_buffer, vertices.len() as _, 1, 0, 0);
             }
-            self.device.cmd_end_rendering(self.draw_command_buffer);
-            self.device.end_command_buffer(self.draw_command_buffer)?;
+            writer.cmd_end_rendering(self.draw_command_buffer);
+            // self.device.end_command_buffer(self.draw_command_buffer)?;
+            writer.finish(&self.draw_command_buffer)?;
 
             let command_buffers = vec![self.draw_command_buffer];
             self.device
