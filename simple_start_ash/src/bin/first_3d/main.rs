@@ -53,7 +53,7 @@ fn make_clear_depth() -> vk::ClearValue {
     let mut res = vk::ClearValue::default();
     unsafe {
         // res.uint32[0] = 0x3F490E7F; // 0.78 as float value, 0x7f in u8 value.
-        res.depth_stencil.depth = 0.0;
+        res.depth_stencil.depth = 1.0;
         res.depth_stencil.stencil = 0;
     }
     res
@@ -448,7 +448,7 @@ impl LocalState {
             let depth_state_info = vk::PipelineDepthStencilStateCreateInfo {
                 depth_test_enable: 1,
                 depth_write_enable: 1,
-                depth_compare_op: vk::CompareOp::GREATER,
+                depth_compare_op: vk::CompareOp::LESS,
                 front: noop_stencil_state,
                 back: noop_stencil_state,
                 // min_depth_bounds: 0.0,
