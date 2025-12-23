@@ -25,7 +25,8 @@ struct Vertex {
     normal: Vec3A,
     color: Vec4,
 }
-const _: () = [(); 1][(core::mem::size_of::<Vertex>() == (3 * 4 * 4)) as usize ^ 1];
+simple_start::static_assert_size!(Vertex, 3 * 4 * 4);
+
 impl Vertex {
     pub fn pnc(position: Vec3A, normal: Vec3A, color: Vec3A) -> Self {
         Self {
@@ -96,6 +97,7 @@ impl LocalState {
                 vec3a(0.0, -0.848, 0.53),
                 vec3a(0.0, 1.0, 1.0),
             ),
+            //
             Vertex::pnc(
                 vec3a(0.5, -0.5, -0.3),
                 vec3a(0.848, 0.0, 0.53),
@@ -111,6 +113,7 @@ impl LocalState {
                 vec3a(0.848, 0.0, 0.53),
                 vec3a(0.0, 1.0, 1.0),
             ),
+            //
             Vertex::pnc(
                 vec3a(0.5, 0.5, -0.3),
                 vec3a(0.0, 0.848, 0.53),
@@ -126,6 +129,7 @@ impl LocalState {
                 vec3a(0.0, 0.848, 0.53),
                 vec3a(1.0, 1.0, 0.0),
             ),
+            //
             Vertex::pnc(
                 vec3a(-0.5, 0.5, -0.3),
                 vec3a(-0.848, 0.0, 0.53),
@@ -152,6 +156,15 @@ impl LocalState {
             10, 11, 12, //
             13, 14, 15,
         ];
+
+        let mut vertices = vertices.clone();
+        for x in vertices.iter_mut() {
+            let angle = simple_start::get_angle_f32(0.2);
+            // let angle = 0.6;
+            x.position = Mat4::from_rotation_z(angle)
+                .transform_point3(x.position.into())
+                .into();
+        }
 
         let mut cam = camera::Camera::new(self.width, self.height);
         // cam.eye = (13.0, 3.7, 0.3).into();
@@ -408,6 +421,8 @@ impl LocalState {
                 front_face: vk::FrontFace::COUNTER_CLOCKWISE,
                 line_width: 1.0,
                 polygon_mode: vk::PolygonMode::FILL,
+                cull_mode: vk::CullModeFlags::NONE,
+
                 ..Default::default()
             };
             let multisample_state_info = vk::PipelineMultisampleStateCreateInfo {
@@ -427,6 +442,7 @@ impl LocalState {
                 depth_compare_op: vk::CompareOp::LESS_OR_EQUAL,
                 front: noop_stencil_state,
                 back: noop_stencil_state,
+                min_depth_bounds: 0.0,
                 max_depth_bounds: 1.0,
                 ..Default::default()
             };
@@ -550,6 +566,7 @@ impl LocalState {
             let viewport = vk::Viewport::default()
                 .width(self.width as f32)
                 .height(self.height as f32)
+                .min_depth(0.0)
                 .max_depth(1.0);
 
             self.device.cmd_set_viewport(

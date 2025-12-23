@@ -78,6 +78,8 @@ pub struct State {
     pub draw_command_buffer: vk::CommandBuffer,
     pub image: vk::Image,
     pub image_memory: vk::DeviceMemory,
+    pub depth_image: vk::Image,
+    pub depth_image_memory: vk::DeviceMemory,
     pub draw_commands_reuse_fence: vk::Fence,
     pub setup_commands_reuse_fence: vk::Fence,
     pub rendering_complete_semaphore: vk::Semaphore,
@@ -374,6 +376,45 @@ impl State {
         let image_memory = unsafe { device.allocate_memory(&image_allocate_info, None)? };
         unsafe { device.bind_image_memory(image, image_memory, 0)? };
 
+        let depth_img_info = vk::ImageCreateInfo::default()
+            .format(vk::Format::D32_SFLOAT)
+            .extent(extent)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .initial_layout(vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL)
+            .usage(
+                vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT
+                    | vk::ImageUsageFlags::TRANSFER_SRC
+                    | vk::ImageUsageFlags::TRANSFER_DST,
+            )
+            .mip_levels(1)
+            .array_layers(1)
+            .image_type(vk::ImageType::TYPE_2D);
+        let depth_image = unsafe { device.create_image(&depth_img_info, None)? };
+        let depth_memory_req = unsafe { device.get_image_memory_requirements(image) };
+        info!("memory_req: {memory_req:#?}");
+
+        // Okay... we have an image now... but it doesn't have any memory allocated to it?]
+        // https://youtu.be/nD83r06b5NE?t=1637
+        // so yea that's... complex.
+        let depth_device_memory_properties =
+            unsafe { instance.get_physical_device_memory_properties(pdevice) };
+        let depth_image_memory_req = unsafe { device.get_image_memory_requirements(depth_image) };
+        let depth_image_memory_index = find_memorytype_index(
+            &depth_image_memory_req,
+            &depth_device_memory_properties,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+        )
+        .with_context(|| "Unable to find suitable memory index for image.")?;
+        info!("image_memory_index: {image_memory_index:#?}");
+
+        let depth_image_allocate_info = vk::MemoryAllocateInfo::default()
+            .allocation_size(depth_image_memory_req.size)
+            .memory_type_index(depth_image_memory_index);
+
+        let depth_image_memory =
+            unsafe { device.allocate_memory(&depth_image_allocate_info, None)? };
+        unsafe { device.bind_image_memory(depth_image, depth_image_memory, 0)? };
+
         let fence_create_info =
             vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
 
@@ -398,6 +439,8 @@ impl State {
             draw_command_buffer,
             image,
             image_memory,
+            depth_image,
+            depth_image_memory,
             draw_commands_reuse_fence,
             setup_commands_reuse_fence,
             rendering_complete_semaphore,
@@ -611,4 +654,12 @@ pub fn get_current_time_f64() -> f64 {
 
 pub fn get_angle_f32(rate: f32) -> f32 {
     (crate::get_current_time_f64() * rate as f64).rem_euclid(2.0 * std::f64::consts::PI) as f32
+}
+
+//https://github.com/rust-lang/rust/blob/4f14395c37db4c1be874e6b0ace6721674223c22/compiler/rustc_index/src/lib.rs#L36
+#[macro_export]
+macro_rules! static_assert_size {
+    ($ty:ty, $size:expr) => {
+        const _: [(); $size] = [(); ::std::mem::size_of::<$ty>()];
+    };
 }

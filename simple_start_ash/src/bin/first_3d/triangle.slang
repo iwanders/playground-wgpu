@@ -24,6 +24,7 @@ struct VertexIn
     [[vk::location(2)]] float4 color;
 };
 
+
 struct VertexOut
 {
 	float4 pos : SV_POSITION;
