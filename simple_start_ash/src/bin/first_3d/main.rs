@@ -51,11 +51,9 @@ fn make_clear_rgba(r: f32, g: f32, b: f32, a: f32) -> vk::ClearValue {
 
 fn make_clear_depth() -> vk::ClearValue {
     let mut res = vk::ClearValue::default();
-    unsafe {
-        // res.uint32[0] = 0x3F490E7F; // 0.78 as float value, 0x7f in u8 value.
-        res.depth_stencil.depth = 1.0;
-        res.depth_stencil.stencil = 0;
-    }
+    // res.uint32[0] = 0x3F490E7F; // 0.78 as float value, 0x7f in u8 value.
+    res.depth_stencil.depth = 1.0;
+    res.depth_stencil.stencil = 0;
     res
 }
 

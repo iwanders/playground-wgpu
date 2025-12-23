@@ -69,9 +69,181 @@ use std::ffi;
 use std::path::Path;
 use zerocopy::IntoBytes;
 
+use std::rc::Rc;
+use std::sync::Arc;
+
+use parking_lot::Mutex;
+// use std::marker::PhantomData;
+
+// Okay, so ash is completely unsafe; https://github.com/ash-rs/ash/issues/665#issuecomment-2030659066
+//
+// The vulkan spec has many many statements of; Host access to * must be externally synchronized. Where * is anything
+// from Instance, Device and Queue...
+//
+// On parents; https://github.com/KhronosGroup/Vulkan-Docs/blob/8ae4650710cc67941a4caf807ef23c76cdc97059/chapters/fundamentals.adoc#L311-L321
+
+// Host access to instance must be externally synchronized
+// https://docs.vulkan.org/spec/latest/chapters/initialization.html
+
+// https://docs.vulkan.org/spec/latest/chapters/devsandqueues.html#VkDevice, Host access to device must be externally synchronized]
+// Making 'safe' wrappers for everything is bad, because that means that things like Fence and DeviceMemory must have a pointer to the device
+// itself to ensure correct destruction order... or we need to introduce lifetimes, but that is also kinda :/
+//
+// Many things are handles only. Lets just wrap the ones that make sense? Goal is a reasonable level of 'safety' and abstraction, but not
+// strictly correct, since that's a very hard goal to achieve in a performant way?
+
+/// A context that holds the key functionality to interact with the vulkan stuff?
+pub struct Ctx {
+    pub instance: Mutex<ash::Instance>,
+    pub device: Mutex<ash::Device>,
+    pub pdevice: Mutex<ash::vk::PhysicalDevice>,
+}
+pub type CtxPtr = Arc<Ctx>;
+impl Ctx {
+    pub fn create_image_owned(
+        &self,
+        img_info: &vk::ImageCreateInfo,
+        subresource: &vk::ImageSubresourceRange,
+    ) -> Result<ImageBuf, anyhow::Error> {
+        let instance = self.instance.lock();
+        let device = self.device.lock();
+        let pdevice = self.pdevice.lock();
+        let image = unsafe { device.create_image(img_info, None)? };
+        info!("image: {image:?}");
+        let memory_req = unsafe { device.get_image_memory_requirements(image) };
+        info!("memory_req: {memory_req:#?}");
+
+        let device_memory_properties =
+            unsafe { instance.get_physical_device_memory_properties(*pdevice) };
+        let image_memory_req = unsafe { device.get_image_memory_requirements(image) };
+        let image_memory_index = find_memorytype_index(
+            &image_memory_req,
+            &device_memory_properties,
+            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT, // !!! Allocate it as host visible, and coherent.
+        )
+        .with_context(|| "Unable to find suitable memory index for image.")?;
+        info!("image_memory_index: {image_memory_index:#?}");
+
+        let image_allocate_info = vk::MemoryAllocateInfo::default()
+            .allocation_size(image_memory_req.size)
+            .memory_type_index(image_memory_index);
+
+        let image_memory = unsafe { device.allocate_memory(&image_allocate_info, None)? };
+        unsafe { device.bind_image_memory(image, image_memory, 0)? };
+
+        Ok(ImageBuf {
+            image,
+            subresource: *subresource,
+            memory: image_memory,
+        })
+    }
+
+    pub fn record_command_buffer<'a, 'b>(&'a self) -> CommandBufferWriter<'a> {
+        CommandBufferWriter {
+            device: self.device.lock(),
+            finished: false,
+        }
+    }
+}
+
+pub struct CommandBufferWriter<'a> {
+    device: parking_lot::MutexGuard<'a, ash::Device>,
+    finished: bool,
+}
+impl<'a> std::ops::Deref for CommandBufferWriter<'a> {
+    type Target = ash::Device;
+
+    fn deref(&self) -> &Self::Target {
+        &self.device
+    }
+}
+
+impl<'a> Drop for CommandBufferWriter<'a> {
+    fn drop(&mut self) {
+        if !self.finished {
+            // Print an error... because vk may segfault on the todo :grimace:.
+            error!("you forgot to add .finish(cmd_buffer) on the writer");
+            todo!("you forgot to add .finish(cmd_buffer) on the writer");
+        }
+    }
+}
+
+impl<'a> CommandBufferWriter<'a> {
+    pub fn finish<'b, T>(mut self, buffer: T) -> ash::prelude::VkResult<()>
+    where
+        T: Into<&'b vk::CommandBuffer>,
+    {
+        self.finished = true;
+        let buffer: &'b vk::CommandBuffer = buffer.into();
+        unsafe { self.end_command_buffer(*buffer) }
+    }
+
+    pub fn imagebuf_layout_barrier<'b, T>(
+        &self,
+        buffer: T,
+        image: &ImageBuf,
+        old_layout: vk::ImageLayout,
+        new_layout: vk::ImageLayout,
+    ) where
+        T: Into<&'b vk::CommandBuffer>,
+    {
+        let buffer: &'b vk::CommandBuffer = buffer.into();
+        // Source image layout.
+        let image_barrier = vk::ImageMemoryBarrier::default()
+            .image(image.image)
+            .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+            .old_layout(old_layout)
+            .new_layout(new_layout)
+            .subresource_range(image.subresource);
+
+        unsafe {
+            self.cmd_pipeline_barrier(
+                *buffer,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[image_barrier],
+            );
+        }
+    }
+}
+
+/// A queue to submit commands to, these are limited and may be shared between threads.
+pub struct Queue {
+    pub ctx: CtxPtr,
+    pub queue: Mutex<vk::Queue>,
+}
+
+/// Allocator to the command buffer, comes from the queue.
+pub struct CommandPool {
+    pub queue: Arc<Queue>,
+    pub pool: vk::CommandPool,
+}
+
+pub struct CommandBuffer {
+    pub pool: Arc<CommandPool>,
+    pub buffer: vk::CommandBuffer,
+}
+impl std::ops::Deref for CommandBuffer {
+    type Target = vk::CommandBuffer;
+
+    fn deref(&self) -> &Self::Target {
+        &self.buffer
+    }
+}
+
+pub struct ImageBuf {
+    pub image: vk::Image,
+    pub memory: vk::DeviceMemory, // This parents to Device.
+    pub subresource: vk::ImageSubresourceRange,
+}
+
 pub struct State {
+    pub ctx: Ctx,
+
     pub instance: ash::Instance,
-    // surface: wgpu::Surface<'static>,
     pub device: ash::Device,
     pub pdevice: ash::vk::PhysicalDevice,
     pub queue: vk::Queue,
@@ -426,10 +598,17 @@ impl State {
         let rendering_complete_semaphore =
             unsafe { device.create_semaphore(&semaphore_create_info, None)? };
 
+        let ctx = Ctx {
+            instance: instance.clone().into(),
+            device: device.clone().into(),
+            pdevice: pdevice.clone().into(),
+        };
+
         Ok(State {
             instance,
             device,
             pdevice,
+            ctx,
             width,
             height,
             queue,
@@ -466,44 +645,26 @@ impl State {
             .usage(vk::ImageUsageFlags::TRANSFER_DST) // Flag as destination now
             .mip_levels(1)
             .array_layers(1)
-            // .initial_layout(vk::ImageLayout::UNDEFINED)
+            .initial_layout(vk::ImageLayout::UNDEFINED)
             .tiling(vk::ImageTiling::LINEAR)
             .image_type(vk::ImageType::TYPE_2D);
-        let image = unsafe { self.device.create_image(&img_info, None)? };
-        info!("image: {image:?}");
-        let memory_req = unsafe { self.device.get_image_memory_requirements(image) };
-        info!("memory_req: {memory_req:#?}");
-
-        let device_memory_properties = unsafe {
-            self.instance
-                .get_physical_device_memory_properties(self.pdevice)
+        let subresource = vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
         };
-        let image_memory_req = unsafe { self.device.get_image_memory_requirements(image) };
-        let image_memory_index = find_memorytype_index(
-            &image_memory_req,
-            &device_memory_properties,
-            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT, // !!! Allocate it as host visible, and coherent.
-        )
-        .with_context(|| "Unable to find suitable memory index for image.")?;
-        info!("image_memory_index: {image_memory_index:#?}");
+        let image = self.ctx.create_image_owned(&img_info, &subresource)?;
 
-        let image_allocate_info = vk::MemoryAllocateInfo::default()
-            .allocation_size(image_memory_req.size)
-            .memory_type_index(image_memory_index);
-
-        let image_memory = unsafe { self.device.allocate_memory(&image_allocate_info, None)? };
-        unsafe { self.device.bind_image_memory(image, image_memory, 0)? };
-
-        // Something something command to transfer now...
-
+        let writer = self.ctx.record_command_buffer();
         // Execute commands.
         unsafe {
             //
             let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
                 .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
-            self.device
-                .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
+            writer.begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
 
             {
                 // Source image layout.
@@ -531,10 +692,16 @@ impl State {
                 );
             }
 
-            {
+            writer.imagebuf_layout_barrier(
+                &self.draw_command_buffer,
+                &image,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            );
+            if false {
                 // Destination image layout.
                 let image_barrier = vk::ImageMemoryBarrier::default()
-                    .image(image)
+                    .image(image.image)
                     .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
                     .old_layout(vk::ImageLayout::UNDEFINED)
                     .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
@@ -570,16 +737,16 @@ impl State {
                         .aspect_mask(vk::ImageAspectFlags::COLOR)
                         .layer_count(1),
                 );
-            self.device.cmd_copy_image(
+            writer.cmd_copy_image(
                 self.draw_command_buffer,
                 self.image,
                 vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
-                image,
+                image.image,
                 vk::ImageLayout::TRANSFER_DST_OPTIMAL,
                 &[region],
             );
 
-            self.device.end_command_buffer(self.draw_command_buffer)?;
+            writer.finish(&self.draw_command_buffer)?;
 
             let command_buffers = vec![self.draw_command_buffer];
             self.device
@@ -599,17 +766,21 @@ impl State {
                 .wait_for_fences(&[self.draw_commands_reuse_fence], true, timeout)?;
         };
 
+        let image_memory = image.image;
         // Then, we map the memory, and copy it...
         //
         let data = {
             let mut res = vec![];
 
             let subres = vk::ImageSubresource::default().aspect_mask(vk::ImageAspectFlags::COLOR);
-            let layout = unsafe { self.device.get_image_subresource_layout(image, subres) };
+            let layout = unsafe {
+                self.device
+                    .get_image_subresource_layout(image.image, subres)
+            };
             info!("layout: {layout:#?}");
             unsafe {
                 let mut raw_location = self.device.map_memory(
-                    image_memory,
+                    image.memory,
                     0,
                     vk::WHOLE_SIZE,
                     vk::MemoryMapFlags::empty(),
