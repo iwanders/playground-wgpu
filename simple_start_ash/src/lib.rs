@@ -24,6 +24,8 @@
 // Don't support swapchain resizing.
 // Understand vkPresentMode
 // do not rely on vkQueueWaitIdle, it does not eliminate pipelining.
+//  oh; https://youtu.be/QtBKLnpxzAw
+//  we currently have some awful hybrid, where we do parts with dynamic rendering and parts with the pipeline?
 //
 // Vulkanised 2025: So You Want to Write a Vulkan Renderer in 2025 - Charles Giessen
 //      https://www.youtube.com/watch?v=7CtjMfDdTdg
@@ -380,7 +382,7 @@ impl State {
             .format(vk::Format::D32_SFLOAT)
             .extent(extent)
             .samples(vk::SampleCountFlags::TYPE_1)
-            .initial_layout(vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL)
+            .initial_layout(vk::ImageLayout::UNDEFINED)
             .usage(
                 vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT
                     | vk::ImageUsageFlags::TRANSFER_SRC
@@ -390,9 +392,6 @@ impl State {
             .array_layers(1)
             .image_type(vk::ImageType::TYPE_2D);
         let depth_image = unsafe { device.create_image(&depth_img_info, None)? };
-        let depth_memory_req = unsafe { device.get_image_memory_requirements(image) };
-        info!("memory_req: {memory_req:#?}");
-
         // Okay... we have an image now... but it doesn't have any memory allocated to it?]
         // https://youtu.be/nD83r06b5NE?t=1637
         // so yea that's... complex.

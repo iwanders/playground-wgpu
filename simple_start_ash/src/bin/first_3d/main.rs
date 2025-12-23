@@ -37,14 +37,24 @@ impl Vertex {
     }
 }
 
-fn make_clear_rgba(r: f32, g: f32, b: f32, a: f32) -> vk::ClearColorValue {
-    let mut res = vk::ClearColorValue::default();
+fn make_clear_rgba(r: f32, g: f32, b: f32, a: f32) -> vk::ClearValue {
+    let mut res = vk::ClearValue::default();
     unsafe {
         // res.uint32[0] = 0x3F490E7F; // 0.78 as float value, 0x7f in u8 value.
-        res.float32[0] = r;
-        res.float32[1] = g;
-        res.float32[2] = b;
-        res.float32[3] = a;
+        res.color.float32[0] = r;
+        res.color.float32[1] = g;
+        res.color.float32[2] = b;
+        res.color.float32[3] = a;
+    }
+    res
+}
+
+fn make_clear_depth() -> vk::ClearValue {
+    let mut res = vk::ClearValue::default();
+    unsafe {
+        // res.uint32[0] = 0x3F490E7F; // 0.78 as float value, 0x7f in u8 value.
+        res.depth_stencil.depth = 0.0;
+        res.depth_stencil.stencil = 0;
     }
     res
 }
@@ -359,7 +369,6 @@ impl LocalState {
                     ..Default::default()
                 },
                 vk::PipelineShaderStageCreateInfo {
-                    s_type: vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
                     module: fragment_shader_module,
                     p_name: frag_shader_name.as_ptr(),
                     stage: vk::ShaderStageFlags::FRAGMENT,
@@ -439,11 +448,11 @@ impl LocalState {
             let depth_state_info = vk::PipelineDepthStencilStateCreateInfo {
                 depth_test_enable: 1,
                 depth_write_enable: 1,
-                depth_compare_op: vk::CompareOp::LESS_OR_EQUAL,
+                depth_compare_op: vk::CompareOp::GREATER,
                 front: noop_stencil_state,
                 back: noop_stencil_state,
-                min_depth_bounds: 0.0,
-                max_depth_bounds: 1.0,
+                // min_depth_bounds: 0.0,
+                // max_depth_bounds: 1.0,
                 ..Default::default()
             };
             let color_blend_attachment_states = [vk::PipelineColorBlendAttachmentState {
@@ -465,7 +474,9 @@ impl LocalState {
                 vk::PipelineDynamicStateCreateInfo::default().dynamic_states(&dynamic_state);
 
             let mut rendering_create = vk::PipelineRenderingCreateInfo::default()
-                .color_attachment_formats(std::slice::from_ref(&vk::Format::R8G8B8A8_UNORM));
+                .color_attachment_formats(std::slice::from_ref(&vk::Format::R8G8B8A8_UNORM))
+                .depth_attachment_format(vk::Format::D32_SFLOAT);
+            // .stencil_attachment_format(vk::Format::D32_SFLOAT);
 
             let graphic_pipeline_info = vk::GraphicsPipelineCreateInfo::default()
                 .push_next(&mut rendering_create)
@@ -512,10 +523,22 @@ impl LocalState {
                     layer_count: 1,
                 });
             let image_view = self.device.create_image_view(&create_view_info, None)?;
-            let mut clear_value = vk::ClearValue::default();
-            unsafe {
-                clear_value.color = make_clear_rgba(1.0, 0.0, 0.0, 0.2);
-            }
+
+            let create_depth_view = vk::ImageViewCreateInfo::default()
+                .image(self.depth_image)
+                .view_type(vk::ImageViewType::TYPE_2D)
+                .format(vk::Format::D32_SFLOAT)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::DEPTH,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                });
+            let depth_view = self.device.create_image_view(&create_depth_view, None)?;
+
+            let clear_value = make_clear_rgba(1.0, 0.0, 0.0, 0.2);
+
             let color_attachment_info = vk::RenderingAttachmentInfo::default()
                 .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
                 .image_view(image_view)
@@ -524,6 +547,13 @@ impl LocalState {
                 .store_op(vk::AttachmentStoreOp::STORE)
                 .clear_value(clear_value);
             // let mut color_attachments = [color_attachment_info; 4];
+            let depth_attachment_info = vk::RenderingAttachmentInfo::default()
+                .image_layout(vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL)
+                .image_view(depth_view)
+                .resolve_mode(vk::ResolveModeFlags::NONE)
+                .load_op(vk::AttachmentLoadOp::CLEAR) // This should be clear to actually clear it.
+                .store_op(vk::AttachmentStoreOp::DONT_CARE)
+                .clear_value(make_clear_depth());
 
             let rendering_info = vk::RenderingInfo::default()
                 .layer_count(1)
@@ -534,7 +564,8 @@ impl LocalState {
                         height: self.height,
                     },
                 })
-                .color_attachments(std::slice::from_ref(&color_attachment_info));
+                .color_attachments(std::slice::from_ref(&color_attachment_info))
+                .depth_attachment(&depth_attachment_info);
 
             // do things.
             {
@@ -546,6 +577,31 @@ impl LocalState {
                     .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
                     .subresource_range(vk::ImageSubresourceRange {
                         aspect_mask: vk::ImageAspectFlags::COLOR,
+                        base_mip_level: 0,
+                        level_count: 1,
+                        base_array_layer: 0,
+                        layer_count: 1,
+                    });
+
+                self.device.cmd_pipeline_barrier(
+                    self.draw_command_buffer,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::PipelineStageFlags::TRANSFER,
+                    vk::DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[image_barrier],
+                );
+            }
+            {
+                // Source image layout, set to available for writing.
+                let image_barrier = vk::ImageMemoryBarrier::default()
+                    .image(self.depth_image)
+                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                    .old_layout(vk::ImageLayout::UNDEFINED)
+                    .new_layout(vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL)
+                    .subresource_range(vk::ImageSubresourceRange {
+                        aspect_mask: vk::ImageAspectFlags::DEPTH,
                         base_mip_level: 0,
                         level_count: 1,
                         base_array_layer: 0,
