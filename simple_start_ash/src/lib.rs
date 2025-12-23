@@ -104,6 +104,7 @@ impl Ctx {
         &self,
         img_info: &vk::ImageCreateInfo,
         subresource: &vk::ImageSubresourceRange,
+        memory_flags: vk::MemoryPropertyFlags,
     ) -> Result<ImageBuf, anyhow::Error> {
         let instance = self.instance.lock();
         let device = self.device.lock();
@@ -119,7 +120,7 @@ impl Ctx {
         let image_memory_index = find_memorytype_index(
             &image_memory_req,
             &device_memory_properties,
-            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT, // !!! Allocate it as host visible, and coherent.
+            memory_flags, // !!! Allocate it as host visible, and coherent.
         )
         .with_context(|| "Unable to find suitable memory index for image.")?;
         info!("image_memory_index: {image_memory_index:#?}");
@@ -250,10 +251,10 @@ pub struct State {
     pub pool: vk::CommandPool,
     pub setup_command_buffer: vk::CommandBuffer,
     pub draw_command_buffer: vk::CommandBuffer,
-    pub image: vk::Image,
-    pub image_memory: vk::DeviceMemory,
-    pub depth_image: vk::Image,
-    pub depth_image_memory: vk::DeviceMemory,
+    pub image: ImageBuf,
+    // pub image_memory: vk::DeviceMemory,
+    pub depth_image: ImageBuf,
+    // pub depth_image_memory: vk::DeviceMemory,
     pub draw_commands_reuse_fence: vk::Fence,
     pub setup_commands_reuse_fence: vk::Fence,
     pub rendering_complete_semaphore: vk::Semaphore,
@@ -507,6 +508,12 @@ impl State {
 
         // Next, we create the output image?
 
+        let ctx = Ctx {
+            instance: instance.clone().into(),
+            device: device.clone().into(),
+            pdevice: pdevice.clone().into(),
+        };
+
         let extent = vk::Extent3D {
             width,
             height,
@@ -520,35 +527,23 @@ impl State {
                 vk::ImageUsageFlags::COLOR_ATTACHMENT
                     | vk::ImageUsageFlags::TRANSFER_SRC
                     | vk::ImageUsageFlags::TRANSFER_DST,
-            )
+            ) // Flag as destination now
             .mip_levels(1)
             .array_layers(1)
+            .initial_layout(vk::ImageLayout::UNDEFINED)
             .image_type(vk::ImageType::TYPE_2D);
-        let image = unsafe { device.create_image(&img_info, None)? };
-        info!("image: {image:?}");
-        let memory_req = unsafe { device.get_image_memory_requirements(image) };
-        info!("memory_req: {memory_req:#?}");
-
-        // Okay... we have an image now... but it doesn't have any memory allocated to it?]
-        // https://youtu.be/nD83r06b5NE?t=1637
-        // so yea that's... complex.
-        let device_memory_properties =
-            unsafe { instance.get_physical_device_memory_properties(pdevice) };
-        let image_memory_req = unsafe { device.get_image_memory_requirements(image) };
-        let image_memory_index = find_memorytype_index(
-            &image_memory_req,
-            &device_memory_properties,
+        let subresource = vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
+        };
+        let image = ctx.create_image_owned(
+            &img_info,
+            &subresource,
             vk::MemoryPropertyFlags::DEVICE_LOCAL,
-        )
-        .with_context(|| "Unable to find suitable memory index for image.")?;
-        info!("image_memory_index: {image_memory_index:#?}");
-
-        let image_allocate_info = vk::MemoryAllocateInfo::default()
-            .allocation_size(image_memory_req.size)
-            .memory_type_index(image_memory_index);
-
-        let image_memory = unsafe { device.allocate_memory(&image_allocate_info, None)? };
-        unsafe { device.bind_image_memory(image, image_memory, 0)? };
+        )?;
 
         let depth_img_info = vk::ImageCreateInfo::default()
             .format(vk::Format::D32_SFLOAT)
@@ -563,28 +558,19 @@ impl State {
             .mip_levels(1)
             .array_layers(1)
             .image_type(vk::ImageType::TYPE_2D);
-        let depth_image = unsafe { device.create_image(&depth_img_info, None)? };
-        // Okay... we have an image now... but it doesn't have any memory allocated to it?]
-        // https://youtu.be/nD83r06b5NE?t=1637
-        // so yea that's... complex.
-        let depth_device_memory_properties =
-            unsafe { instance.get_physical_device_memory_properties(pdevice) };
-        let depth_image_memory_req = unsafe { device.get_image_memory_requirements(depth_image) };
-        let depth_image_memory_index = find_memorytype_index(
-            &depth_image_memory_req,
-            &depth_device_memory_properties,
+        let depth_subresource = vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::DEPTH,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
+        };
+
+        let depth_image = ctx.create_image_owned(
+            &depth_img_info,
+            &depth_subresource,
             vk::MemoryPropertyFlags::DEVICE_LOCAL,
-        )
-        .with_context(|| "Unable to find suitable memory index for image.")?;
-        info!("image_memory_index: {image_memory_index:#?}");
-
-        let depth_image_allocate_info = vk::MemoryAllocateInfo::default()
-            .allocation_size(depth_image_memory_req.size)
-            .memory_type_index(depth_image_memory_index);
-
-        let depth_image_memory =
-            unsafe { device.allocate_memory(&depth_image_allocate_info, None)? };
-        unsafe { device.bind_image_memory(depth_image, depth_image_memory, 0)? };
+        )?;
 
         let fence_create_info =
             vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
@@ -598,12 +584,6 @@ impl State {
         let rendering_complete_semaphore =
             unsafe { device.create_semaphore(&semaphore_create_info, None)? };
 
-        let ctx = Ctx {
-            instance: instance.clone().into(),
-            device: device.clone().into(),
-            pdevice: pdevice.clone().into(),
-        };
-
         Ok(State {
             instance,
             device,
@@ -616,9 +596,9 @@ impl State {
             setup_command_buffer,
             draw_command_buffer,
             image,
-            image_memory,
+            // image_memory,
             depth_image,
-            depth_image_memory,
+            // depth_image_memory,
             draw_commands_reuse_fence,
             setup_commands_reuse_fence,
             rendering_complete_semaphore,
@@ -655,7 +635,11 @@ impl State {
             base_array_layer: 0,
             layer_count: 1,
         };
-        let image = self.ctx.create_image_owned(&img_info, &subresource)?;
+        let image = self.ctx.create_image_owned(
+            &img_info,
+            &subresource,
+            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+        )?;
 
         let writer = self.ctx.record_command_buffer();
         // Execute commands.
@@ -666,31 +650,12 @@ impl State {
 
             writer.begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
 
-            {
-                // Source image layout.
-                let image_barrier = vk::ImageMemoryBarrier::default()
-                    .image(self.image)
-                    .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
-                    .old_layout(vk::ImageLayout::UNDEFINED)
-                    .new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
-                    .subresource_range(vk::ImageSubresourceRange {
-                        aspect_mask: vk::ImageAspectFlags::COLOR,
-                        base_mip_level: 0,
-                        level_count: 1,
-                        base_array_layer: 0,
-                        layer_count: 1,
-                    });
-
-                self.device.cmd_pipeline_barrier(
-                    self.draw_command_buffer,
-                    vk::PipelineStageFlags::TRANSFER,
-                    vk::PipelineStageFlags::TRANSFER,
-                    vk::DependencyFlags::empty(),
-                    &[],
-                    &[],
-                    &[image_barrier],
-                );
-            }
+            writer.imagebuf_layout_barrier(
+                &self.draw_command_buffer,
+                &self.image,
+                vk::ImageLayout::UNDEFINED,
+                vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+            );
 
             writer.imagebuf_layout_barrier(
                 &self.draw_command_buffer,
@@ -739,7 +704,7 @@ impl State {
                 );
             writer.cmd_copy_image(
                 self.draw_command_buffer,
-                self.image,
+                self.image.image,
                 vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
                 image.image,
                 vk::ImageLayout::TRANSFER_DST_OPTIMAL,

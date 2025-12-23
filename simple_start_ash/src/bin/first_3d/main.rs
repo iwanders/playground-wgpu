@@ -510,7 +510,7 @@ impl LocalState {
 
             // Shoot I need a view now.
             let create_view_info = vk::ImageViewCreateInfo::default()
-                .image(self.image)
+                .image(self.image.image)
                 .view_type(vk::ImageViewType::TYPE_2D)
                 .format(vk::Format::R8G8B8A8_UNORM)
                 .subresource_range(vk::ImageSubresourceRange {
@@ -523,7 +523,7 @@ impl LocalState {
             let image_view = self.device.create_image_view(&create_view_info, None)?;
 
             let create_depth_view = vk::ImageViewCreateInfo::default()
-                .image(self.depth_image)
+                .image(self.depth_image.image)
                 .view_type(vk::ImageViewType::TYPE_2D)
                 .format(vk::Format::D32_SFLOAT)
                 .subresource_range(vk::ImageSubresourceRange {
@@ -569,7 +569,7 @@ impl LocalState {
             {
                 // Source image layout, set to available for writing.
                 let image_barrier = vk::ImageMemoryBarrier::default()
-                    .image(self.image)
+                    .image(self.image.image)
                     .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
                     .old_layout(vk::ImageLayout::UNDEFINED)
                     .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
@@ -594,7 +594,7 @@ impl LocalState {
             {
                 // Source image layout, set to available for writing.
                 let image_barrier = vk::ImageMemoryBarrier::default()
-                    .image(self.depth_image)
+                    .image(self.depth_image.image)
                     .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE)
                     .old_layout(vk::ImageLayout::UNDEFINED)
                     .new_layout(vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL)
