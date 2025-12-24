@@ -183,8 +183,8 @@ impl LocalState {
         // let camera_mat = cam.to_view_projection_matrix();
         unsafe {
             // let device = self.ctx.device.lock();
-            let device_memory_properties = self.ctx.get_physical_device_memory_properties();
-            let device = self.ctx.device.lock();
+            let device_memory_properties = self.device.get_physical_device_memory_properties();
+            let device = self.device.lock();
             // Lets build a pipeline!
             // https://github.com/SaschaWillems/Vulkan/blob/b9f0ac91d2adccc3055a904d3a8f6553b10ff6cd/examples/renderheadless/renderheadless.cpp#L508
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp#L301
@@ -493,7 +493,7 @@ impl LocalState {
 
             // Shoot I need a view now.
             let create_view_info = vk::ImageViewCreateInfo::default()
-                .image(self.image.image)
+                .image(*self.image.image)
                 .view_type(vk::ImageViewType::TYPE_2D)
                 .format(vk::Format::R8G8B8A8_UNORM)
                 .subresource_range(vk::ImageSubresourceRange {
@@ -506,7 +506,7 @@ impl LocalState {
             let image_view = device.create_image_view(&create_view_info, None)?;
 
             let create_depth_view = vk::ImageViewCreateInfo::default()
-                .image(self.depth_image.image)
+                .image(*self.depth_image.image)
                 .view_type(vk::ImageViewType::TYPE_2D)
                 .format(vk::Format::D32_SFLOAT)
                 .subresource_range(vk::ImageSubresourceRange {
@@ -519,7 +519,7 @@ impl LocalState {
             let depth_view = device.create_image_view(&create_depth_view, None)?;
             drop(device);
             let writer = self
-                .ctx
+                .device
                 .record_command_buffer(&self.draw_command_buffer, &command_buffer_begin_info)?;
             // self.device
             //     .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
@@ -558,14 +558,14 @@ impl LocalState {
 
             // do things.
             writer.imagebuf_layout_barrier(
-                &self.draw_command_buffer,
+                &*self.draw_command_buffer,
                 &self.image,
                 vk::ImageLayout::UNDEFINED,
                 vk::ImageLayout::TRANSFER_DST_OPTIMAL,
             );
 
             writer.imagebuf_layout_barrier(
-                &self.draw_command_buffer,
+                &*self.draw_command_buffer,
                 &self.depth_image,
                 vk::ImageLayout::UNDEFINED,
                 vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
@@ -577,33 +577,41 @@ impl LocalState {
                 .min_depth(0.0)
                 .max_depth(1.0);
 
-            writer.cmd_set_viewport(self.draw_command_buffer, 0, std::slice::from_ref(&viewport));
+            writer.cmd_set_viewport(
+                *self.draw_command_buffer,
+                0,
+                std::slice::from_ref(&viewport),
+            );
 
             let scissors = vk::Rect2D::default().extent(
                 vk::Extent2D::default()
                     .width(self.width)
                     .height(self.height),
             );
-            writer.cmd_set_scissor(self.draw_command_buffer, 0, std::slice::from_ref(&scissors));
+            writer.cmd_set_scissor(
+                *self.draw_command_buffer,
+                0,
+                std::slice::from_ref(&scissors),
+            );
             writer.cmd_bind_vertex_buffers(
-                self.draw_command_buffer,
+                *self.draw_command_buffer,
                 0,
                 &[vertex_input_buffer],
                 &[0],
             );
             writer.cmd_bind_index_buffer(
-                self.draw_command_buffer,
+                *self.draw_command_buffer,
                 index_buffer,
                 0,
                 vk::IndexType::UINT32,
             );
 
             writer.cmd_bind_pipeline(
-                self.draw_command_buffer,
+                *self.draw_command_buffer,
                 vk::PipelineBindPoint::GRAPHICS,
                 pipeline,
             );
-            writer.cmd_begin_rendering(self.draw_command_buffer, &rendering_info);
+            writer.cmd_begin_rendering(*self.draw_command_buffer, &rendering_info);
 
             // send the push constants.
             //
@@ -612,7 +620,7 @@ impl LocalState {
             };
 
             writer.cmd_push_constants(
-                self.draw_command_buffer,
+                *self.draw_command_buffer,
                 layout,
                 vk::ShaderStageFlags::VERTEX,
                 0,
@@ -623,27 +631,31 @@ impl LocalState {
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp
             const DRAW_INDICED: bool = true;
             if DRAW_INDICED {
-                writer.cmd_draw_indexed(self.draw_command_buffer, indices.len() as _, 1, 0, 0, 0);
+                writer.cmd_draw_indexed(*self.draw_command_buffer, indices.len() as _, 1, 0, 0, 0);
             } else {
-                writer.cmd_draw(self.draw_command_buffer, vertices.len() as _, 1, 0, 0);
+                writer.cmd_draw(*self.draw_command_buffer, vertices.len() as _, 1, 0, 0);
             }
-            writer.cmd_end_rendering(self.draw_command_buffer);
+            writer.cmd_end_rendering(*self.draw_command_buffer);
             // self.device.end_command_buffer(self.draw_command_buffer)?;
             writer.finish(&self.draw_command_buffer)?;
 
-            let command_buffers = vec![self.draw_command_buffer];
-            let device = self.ctx.device.lock();
-            device.reset_fences(&[self.draw_commands_reuse_fence])?;
+            let command_buffers = vec![*self.draw_command_buffer];
+            let device = self.device.lock();
+            device.reset_fences(&[*self.draw_commands_reuse_fence])?;
 
-            let sema = [self.rendering_complete_semaphore];
+            let sema = [*self.rendering_complete_semaphore];
             let submit_info = vk::SubmitInfo::default()
                 .wait_semaphores(&sema)
                 .wait_dst_stage_mask(&[])
                 .command_buffers(&command_buffers)
                 .signal_semaphores(&[]);
-            device.queue_submit(self.queue, &[submit_info], self.draw_commands_reuse_fence)?;
+            device.queue_submit(
+                *self.queue.lock(),
+                &[submit_info],
+                *self.draw_commands_reuse_fence,
+            )?;
             let timeout = 1_000_000; // in nanoseconds.
-            device.wait_for_fences(&[self.draw_commands_reuse_fence], true, timeout)?;
+            device.wait_for_fences(&[*self.draw_commands_reuse_fence], true, timeout)?;
             // std::thread::sleep(std::time::Duration::from_secs(1));
         }
         Ok(())

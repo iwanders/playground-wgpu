@@ -83,21 +83,27 @@ pub mod pyroclastic; // as pc
 use pyroclastic::*;
 
 pub struct State {
-    pub ctx: Ctx,
+    pub device: Device,
+    pub queue: Queue,
+    pub pool: CommandPool,
+    pub draw_command_buffer: CommandBuffer,
+    pub draw_commands_reuse_fence: Fence,
+    pub setup_commands_reuse_fence: Fence,
+    pub rendering_complete_semaphore: Semaphore,
 
     // pub instance: ash::Instance,
     // pub device: ash::Device,
     // pub pdevice: ash::vk::PhysicalDevice,
-    pub queue: vk::Queue,
-    pub pool: vk::CommandPool,
-    pub draw_command_buffer: vk::CommandBuffer,
+    // pub queue: vk::Queue,
+    // pub pool: vk::CommandPool,
+    // pub draw_command_buffer: vk::CommandBuffer,
     pub image: ImageBuf,
     // pub image_memory: vk::DeviceMemory,
     pub depth_image: ImageBuf,
     // pub depth_image_memory: vk::DeviceMemory,
-    pub draw_commands_reuse_fence: vk::Fence,
-    pub setup_commands_reuse_fence: vk::Fence,
-    pub rendering_complete_semaphore: vk::Semaphore,
+    // pub draw_commands_reuse_fence: vk::Fence,
+    // pub setup_commands_reuse_fence: vk::Fence,
+    // pub rendering_complete_semaphore: vk::Semaphore,
     // pub queue: wgpu::Queue,
     // pub buffer: wgpu::Buffer,
     // pub texture: wgpu::Texture,
@@ -307,32 +313,40 @@ impl State {
         // info!("surface: {surface:?}");
         dbg!();
 
-        let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
-        info!("queue: {queue:?}");
+        let instance = Instance::new(instance);
+        let device = Device::new(instance.into(), device, pdevice);
+        // let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
+        let queue = device.get_device_queue_tracked(queue_family_index, 0);
 
         let pool_create_info = vk::CommandPoolCreateInfo::default()
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
             .queue_family_index(queue_family_index);
 
-        let pool = unsafe { device.create_command_pool(&pool_create_info, None)? };
+        let pool = queue.create_command_pool_tracked(&pool_create_info)?;
+        /*let pool = unsafe {
+            device
+                .device
+                .lock()
+                .create_command_pool(&pool_create_info, None)?
+        };*/
         // Okay, now we have a queue...
 
         let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::default()
             .command_buffer_count(2)
-            .command_pool(pool)
+            // .command_pool(*pool)
             .level(vk::CommandBufferLevel::PRIMARY);
 
-        let command_buffers =
-            unsafe { device.allocate_command_buffers(&command_buffer_allocate_info)? };
-        let draw_command_buffer = command_buffers[0];
+        let mut command_buffers =
+            pool.allocate_command_buffers_tracked(&command_buffer_allocate_info)?;
+        // let command_buffers = unsafe {
+        //     device
+        //         .device
+        //         .lock()
+        //         .allocate_command_buffers(&command_buffer_allocate_info)?
+        // };
+        let draw_command_buffer = command_buffers[0].clone();
 
         // Next, we create the output image?
-
-        let ctx = Ctx {
-            instance: instance.clone().into(),
-            device: device.clone().into(),
-            pdevice: pdevice.clone().into(),
-        };
 
         let extent = vk::Extent3D {
             width,
@@ -359,7 +373,7 @@ impl State {
             base_array_layer: 0,
             layer_count: 1,
         };
-        let image = ctx.create_image_owned(
+        let image = device.create_image_owned(
             &img_info,
             &subresource,
             vk::MemoryPropertyFlags::DEVICE_LOCAL,
@@ -386,7 +400,7 @@ impl State {
             layer_count: 1,
         };
 
-        let depth_image = ctx.create_image_owned(
+        let depth_image = device.create_image_owned(
             &depth_img_info,
             &depth_subresource,
             vk::MemoryPropertyFlags::DEVICE_LOCAL,
@@ -395,20 +409,20 @@ impl State {
         let fence_create_info =
             vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
 
-        let draw_commands_reuse_fence = unsafe { device.create_fence(&fence_create_info, None)? };
+        let draw_commands_reuse_fence = device.create_fence_tracked(&fence_create_info)?;
 
-        let setup_commands_reuse_fence = unsafe { device.create_fence(&fence_create_info, None)? };
+        let setup_commands_reuse_fence = device.create_fence_tracked(&fence_create_info)?;
 
         let semaphore_create_info = vk::SemaphoreCreateInfo::default();
 
         let rendering_complete_semaphore =
-            unsafe { device.create_semaphore(&semaphore_create_info, None)? };
+            device.create_semaphore_tracked(&semaphore_create_info)?;
 
         Ok(State {
             // instance,
             // device,
             // pdevice,
-            ctx,
+            device,
             width,
             height,
             queue,
@@ -454,7 +468,7 @@ impl State {
             base_array_layer: 0,
             layer_count: 1,
         };
-        let image = self.ctx.create_image_owned(
+        let image = self.device.create_image_owned(
             &img_info,
             &subresource,
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
@@ -464,7 +478,7 @@ impl State {
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
         let writer = self
-            .ctx
+            .device
             .record_command_buffer(&self.draw_command_buffer, &command_buffer_begin_info)?;
         // Execute commands.
         unsafe {
@@ -502,45 +516,48 @@ impl State {
                         .layer_count(1),
                 );
             writer.cmd_copy_image(
-                self.draw_command_buffer,
-                self.image.image,
+                *self.draw_command_buffer,
+                *self.image.image,
                 vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
-                image.image,
+                *image.image,
                 vk::ImageLayout::TRANSFER_DST_OPTIMAL,
                 &[region],
             );
 
-            writer.finish(&self.draw_command_buffer)?;
+            writer.finish(&*self.draw_command_buffer)?;
 
-            let command_buffers = vec![self.draw_command_buffer];
-            let device = self.ctx.device.lock();
-            device.reset_fences(&[self.draw_commands_reuse_fence])?;
+            let command_buffers = vec![*self.draw_command_buffer];
+            let device = self.device.lock();
+            device.reset_fences(&[*self.draw_commands_reuse_fence])?;
 
-            let sema = [self.rendering_complete_semaphore];
+            let sema = [*self.rendering_complete_semaphore];
             let submit_info = vk::SubmitInfo::default()
                 .wait_semaphores(&sema)
                 .wait_dst_stage_mask(&[])
                 .command_buffers(&command_buffers)
                 .signal_semaphores(&[]);
 
-            device.queue_submit(self.queue, &[submit_info], self.draw_commands_reuse_fence)?;
+            device.queue_submit(
+                *self.queue.lock(),
+                &[submit_info],
+                *self.draw_commands_reuse_fence,
+            )?;
             let timeout = 1_000_000; // in nanoseconds.
-            device.wait_for_fences(&[self.draw_commands_reuse_fence], true, timeout)?;
+            device.wait_for_fences(&[*self.draw_commands_reuse_fence], true, timeout)?;
         };
 
-        let image_memory = image.image;
         // Then, we map the memory, and copy it...
         //
         let data = {
-            let device = self.ctx.device.lock();
+            let device = self.device.lock();
             let mut res = vec![];
 
             let subres = vk::ImageSubresource::default().aspect_mask(vk::ImageAspectFlags::COLOR);
-            let layout = unsafe { device.get_image_subresource_layout(image.image, subres) };
+            let layout = unsafe { device.get_image_subresource_layout(*image.image, subres) };
             info!("layout: {layout:#?}");
             unsafe {
                 let mut raw_location = device.map_memory(
-                    image.memory,
+                    *image.memory,
                     0,
                     vk::WHOLE_SIZE,
                     vk::MemoryMapFlags::empty(),
