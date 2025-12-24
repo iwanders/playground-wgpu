@@ -1,5 +1,6 @@
 use std::io::Cursor;
 use std::sync::Arc;
+mod camera;
 
 use anyhow::Context;
 use glam::{Mat4, Vec3, Vec3A, Vec4, vec3, vec3a, vec4};
@@ -9,26 +10,47 @@ use vulkano::buffer::{Buffer, BufferCreateInfo, BufferUsage};
 use vulkano::command_buffer::allocator::{
     StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo,
 };
-use vulkano::command_buffer::{AutoCommandBufferBuilder, CopyImageToBufferInfo};
+use vulkano::command_buffer::{
+    AutoCommandBufferBuilder, CopyImageToBufferInfo, RenderPassBeginInfo, SubpassBeginInfo,
+    SubpassContents, SubpassEndInfo,
+};
 use vulkano::command_buffer::{ClearColorImageInfo, CommandBufferUsage};
 use vulkano::format::ClearColorValue;
+use vulkano::format::Format;
+use vulkano::image::view::ImageView;
 use vulkano::memory::allocator::{AllocationCreateInfo, MemoryTypeFilter};
-use vulkano::pipeline::PipelineBindPoint;
+use vulkano::pipeline::graphics::GraphicsPipelineCreateInfo;
+use vulkano::pipeline::graphics::color_blend::{ColorBlendAttachmentState, ColorBlendState};
+use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
+use vulkano::pipeline::graphics::multisample::MultisampleState;
+use vulkano::pipeline::graphics::rasterization::RasterizationState;
+use vulkano::pipeline::graphics::vertex_input::{Vertex, VertexDefinition};
+use vulkano::pipeline::graphics::viewport::{Viewport, ViewportState};
+use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
+use vulkano::pipeline::{
+    GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout, PipelineShaderStageCreateInfo,
+};
+use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, Subpass};
 use vulkano::sync::{self, GpuFuture};
-
 use zerocopy::IntoBytes;
 use zerocopy_derive::Immutable;
 
 use vulkano::buffer::BufferContents;
 #[repr(C)]
-#[derive(Copy, Clone, Debug, IntoBytes, Immutable, BufferContents)]
-struct Vertex {
+#[derive(Copy, Clone, Debug, IntoBytes, Immutable, BufferContents, Vertex)]
+struct MyVertex {
+    #[format(R32G32B32A32_SFLOAT)]
+    #[name("input.position")]
     position: Vec3A,
+    #[format(R32G32B32A32_SFLOAT)]
+    #[name("input.normal")]
     normal: Vec3A,
+    #[format(R32G32B32A32_SFLOAT)]
+    #[name("input.color")]
     color: Vec4,
 }
-simple_start::static_assert_size!(Vertex, 3 * 4 * 4);
-impl Vertex {
+simple_start::static_assert_size!(MyVertex, 3 * 4 * 4);
+impl MyVertex {
     pub fn pnc(position: Vec3A, normal: Vec3A, color: Vec3A) -> Self {
         Self {
             position: vec3a(position.x, position.y, position.z),
@@ -50,90 +72,97 @@ impl std::ops::Deref for LocalState {
 
 impl LocalState {
     pub fn draw(&self) -> anyhow::Result<()> {
+        let mut cam = camera::Camera::new(self.width, self.height);
+        // cam.eye = (13.0, 3.7, 0.3).into();
+        // cam.target = (0.0, 6.0, 1.0).into();
+        cam.eye = (1.0, 0.7, 0.5).into();
+        // have it look at the origin
+        cam.target = (0.0, 0.0, 0.0).into();
+
         #[allow(dead_code)]
-        let vertices: [Vertex; 16] = [
+        let vertices: [MyVertex; 16] = [
             // The base
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(-0.5, -0.5, -0.3),
                 vec3a(0.0, -1.0, 0.0),
                 vec3a(0.0, 0.0, 1.0),
             ),
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(0.5, -0.5, -0.3),
                 vec3a(0.0, -1.0, 0.0),
                 vec3a(1.0, 0.0, 0.0),
             ),
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(0.5, 0.5, -0.3),
                 vec3a(0.0, -1.0, 0.0),
                 vec3a(0.0, 1.0, 0.0),
             ),
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(-0.5, 0.5, -0.3),
                 vec3a(0.0, -1.0, 0.0),
                 vec3a(1.0, 0.0, 1.0),
             ),
             // Face sides have their own copy of the vertices
             // because they have a different normal vector.
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(-0.5, -0.5, -0.3),
                 vec3a(0.0, -0.848, 0.53),
                 vec3a(1.0, 1.0, 0.0),
             ),
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(0.5, -0.5, -0.3),
                 vec3a(0.0, -0.848, 0.53),
                 vec3a(1.0, 0.0, 1.0),
             ),
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(0.0, 0.0, 0.5),
                 vec3a(0.0, -0.848, 0.53),
                 vec3a(0.0, 1.0, 1.0),
             ),
             //
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(0.5, -0.5, -0.3),
                 vec3a(0.848, 0.0, 0.53),
                 vec3a(1.0, 1.0, 0.0),
             ),
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(0.5, 0.5, -0.3),
                 vec3a(0.848, 0.0, 0.53),
                 vec3a(1.0, 0.0, 1.0),
             ),
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(0.0, 0.0, 0.5),
                 vec3a(0.848, 0.0, 0.53),
                 vec3a(0.0, 1.0, 1.0),
             ),
             //
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(0.5, 0.5, -0.3),
                 vec3a(0.0, 0.848, 0.53),
                 vec3a(1.0, 1.0, 0.0),
             ),
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(-0.5, 0.5, -0.3),
                 vec3a(0.0, 0.848, 0.53),
                 vec3a(1.0, 1.0, 1.0),
             ),
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(0.0, 0.0, 0.5),
                 vec3a(0.0, 0.848, 0.53),
                 vec3a(1.0, 1.0, 0.0),
             ),
             //
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(-0.5, 0.5, -0.3),
                 vec3a(-0.848, 0.0, 0.53),
                 vec3a(1.0, 1.0, 0.0),
             ),
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(-0.5, -0.5, -0.3),
                 vec3a(-0.848, 0.0, 0.53),
                 vec3a(1.0, 0.0, 1.0),
             ),
-            Vertex::pnc(
+            MyVertex::pnc(
                 vec3a(0.0, 0.0, 0.5),
                 vec3a(-0.848, 0.0, 0.53),
                 vec3a(0.0, 1.0, 1.0),
@@ -159,11 +188,10 @@ impl LocalState {
                 .into();
         }
 
-        // THis is... something, but I can't directly pass a [Vertex;16] type thing? :/
-        let buffer = Buffer::from_data::<[u8; 16 * std::mem::size_of::<Vertex>()]>(
+        let vertex_buffer = Buffer::from_iter(
             self.memory_allocator.clone(),
             BufferCreateInfo {
-                usage: BufferUsage::UNIFORM_BUFFER,
+                usage: BufferUsage::VERTEX_BUFFER,
                 ..Default::default()
             },
             AllocationCreateInfo {
@@ -171,7 +199,24 @@ impl LocalState {
                     | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
                 ..Default::default()
             },
-            vertices.as_bytes().try_into().unwrap(),
+            vertices,
+        )
+        .unwrap();
+
+        let render_pass = vulkano::single_pass_renderpass!(
+            self.device.clone(),
+            attachments: {
+                color: {
+                    format: Format::R8G8B8A8_UNORM,
+                    samples: 1,
+                    load_op: Clear,
+                    store_op: Store,
+                },
+            },
+            pass: {
+                color: [color],
+                depth_stencil: {},
+            },
         )
         .unwrap();
 
@@ -191,6 +236,82 @@ impl LocalState {
         )
         .unwrap();
 
+        let viewport = Viewport {
+            offset: [0.0, 0.0],
+            extent: [self.width as f32, self.height as f32],
+            depth_range: 0.0..=1.0,
+        };
+
+        let pipeline = {
+            // A Vulkan shader can in theory contain multiple entry points, so we have to specify
+            // which one.
+            // let vs = vs.entry_point("main").unwrap();
+            // let fs = fs.entry_point("main").unwrap();
+            //
+
+            let data: Vec<u32> = include_bytes!("./triangle.spv")[..]
+                .chunks(4)
+                .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+                .collect();
+            // let spirv_things = vulkano::shader::spirv::Spirv::new(&data)?;
+            let shader_object = unsafe {
+                vulkano::shader::ShaderModule::new(
+                    self.device.clone(),
+                    vulkano::shader::ShaderModuleCreateInfo::new(&data),
+                )?
+            };
+            // let mut vertex_spv_file = Cursor::new(&vertex_spv_bytes);
+            // let mut frag_spv_file = Cursor::new(&frag_spv_file);
+            let vs = shader_object.entry_point("vertexMain").unwrap();
+            let fs = shader_object.entry_point("fragmentMain").unwrap();
+
+            let vertex_input_state = MyVertex::per_vertex().definition(&vs).unwrap();
+
+            let stages = [
+                PipelineShaderStageCreateInfo::new(vs),
+                PipelineShaderStageCreateInfo::new(fs),
+            ];
+
+            let layout = PipelineLayout::new(
+                self.device.clone(),
+                PipelineDescriptorSetLayoutCreateInfo::from_stages(&stages)
+                    .into_pipeline_layout_create_info(self.device.clone())
+                    .unwrap(),
+            )
+            .unwrap();
+
+            let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
+
+            GraphicsPipeline::new(
+                self.device.clone(),
+                None,
+                GraphicsPipelineCreateInfo {
+                    // The stages of our pipeline, we have vertex and fragment stages.
+                    stages: stages.into_iter().collect(),
+                    // Describes the layout of the vertex input and how should it behave.
+                    vertex_input_state: Some(vertex_input_state),
+                    // Indicate the type of the primitives (the default is a list of triangles).
+                    input_assembly_state: Some(InputAssemblyState::default()),
+                    // Set the fixed viewport.
+                    viewport_state: Some(ViewportState {
+                        viewports: [viewport].into_iter().collect(),
+                        ..Default::default()
+                    }),
+                    // Ignore these for now.
+                    rasterization_state: Some(RasterizationState::default()),
+                    multisample_state: Some(MultisampleState::default()),
+                    color_blend_state: Some(ColorBlendState::with_attachment_states(
+                        subpass.num_color_attachments(),
+                        ColorBlendAttachmentState::default(),
+                    )),
+                    // This graphics pipeline object concerns the first pass of the render pass.
+                    subpass: Some(subpass.into()),
+                    ..GraphicsPipelineCreateInfo::layout(layout)
+                },
+            )
+            .unwrap()
+        };
+
         let mut builder = AutoCommandBufferBuilder::primary(
             command_buffer_allocator.clone(),
             self.queue.queue_family_index(),
@@ -198,12 +319,58 @@ impl LocalState {
         )
         .unwrap();
 
-        builder
-            .clear_color_image(ClearColorImageInfo {
-                clear_value: ClearColorValue::Float([0.0, 0.0, 1.0, 1.0]),
-                ..ClearColorImageInfo::image(self.image.clone())
-            })
-            .unwrap();
+        let render_output_image_view = ImageView::new_default(self.image.clone()).unwrap();
+
+        let framebuffer = Framebuffer::new(
+            render_pass,
+            FramebufferCreateInfo {
+                // Attach the offscreen image to the framebuffer.
+                attachments: vec![render_output_image_view.clone()],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        #[repr(C)]
+        #[derive(Copy, Clone, Debug, IntoBytes, Immutable, BufferContents)]
+        struct FramePush {
+            camera: Mat4,
+        }
+
+        let push_val = FramePush {
+            camera: cam.to_view_projection_matrix(),
+        };
+        let push_constants = push_val;
+        unsafe {
+            builder
+                .begin_render_pass(
+                    RenderPassBeginInfo {
+                        clear_values: vec![Some([0.0, 0.0, 1.0, 1.0].into())],
+                        ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
+                    },
+                    SubpassBeginInfo {
+                        contents: SubpassContents::Inline,
+                        ..Default::default()
+                    },
+                )
+                .unwrap()
+                // new stuff
+                .bind_pipeline_graphics(pipeline.clone())
+                .unwrap()
+                .bind_vertex_buffers(0, vertex_buffer.clone())
+                .unwrap()
+                .push_constants(pipeline.layout().clone(), 0, push_constants)
+                .unwrap()
+                .draw(
+                    vertices.len() as u32,
+                    1,
+                    0,
+                    0, // 3 is the number of vertices, 1 is the number of instances
+                )
+                .unwrap()
+                .end_render_pass(SubpassEndInfo::default())
+                .unwrap();
+        }
 
         let command_buffer = builder.build().unwrap();
         sync::now(self.device.clone())
