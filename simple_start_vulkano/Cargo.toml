@@ -1,0 +1,27 @@
+[package]
+name = "simple_start"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+
+env_logger = "0.10"
+log = "0.4"
+
+anyhow = "1.0"
+#parking_lot = "0.12.5"
+vulkano = "0.35.2"
+
+
+image = {version="0.25.9", default-features=false, features=["png"]}
+
+zerocopy = "0.8"
+zerocopy-derive = "0.8"
+
+glam = {version="0.30.9", features=["zerocopy", "bytemuck"]}
+
+# This is only ncessary for the shader_utils to compile glsl code directly.
+#naga = {version="28.0.0", features=["glsl-in", "spv-out"]}
+[profile.dev]
+opt-level = 1
