@@ -1,10 +1,14 @@
 /// Like fast moving vulcanic ash.
 ///
-/// Goal; Speed up development by providing helpers. Provide full access to everything.
+/// Goal; Speed up development by providing helpers.
+/// Provide full access to everything.
+/// Don't leak memory.
 // Okay, so ash is completely unsafe; https://github.com/ash-rs/ash/issues/665#issuecomment-2030659066
 //
 // The vulkan spec has many many statements of; Host access to * must be externally synchronized. Where * is anything
 // from Instance, Device and Queue...
+//
+// Maybe... I should've made device not send... that way we don't need a mutex?
 //
 // On parents; https://github.com/KhronosGroup/Vulkan-Docs/blob/8ae4650710cc67941a4caf807ef23c76cdc97059/chapters/fundamentals.adoc#L311-L321
 
@@ -25,7 +29,17 @@
 //
 // There's 21 methods in device that start with destroy_*  so... only 21 object types, that's a lot, but doable to wrap
 // all and ensure proper destruction of them all by keeping the tree, for convenience we'll add derefs to all.
-//
+
+// Amazing, I found the first race condition, even though we block on the pipeline finishing?
+/*
+[2025-12-24T02:50:47Z ERROR simple_start] VALIDATION [VUID-vkDestroyImage-image-01000 (-221078694)] : vkDestroyImage(): can't be called on VkImage 0x150000000015 that is currently in use by VkCommandBuffer 0x5621956ab9c0.
+    The Vulkan spec states: All submitted commands that refer to image, either directly or via a VkImageView, must have completed execution (https://docs.vulkan.org/spec/latest/chapters/resources.html#VUID-vkDestroyImage-image-01000)
+[2025-12-24T02:50:47Z ERROR simple_start] VALIDATION [VUID-vkDestroyCommandPool-commandPool-00041 (-1387836198)] : vkDestroyCommandPool(): (VkCommandBuffer 0x5621956ab9c0) is in use.
+    The Vulkan spec states: All VkCommandBuffer objects allocated from commandPool must not be in the pending state (https://docs.vulkan.org/spec/latest/chapters/cmdbuffers.html#VUID-vkDestroyCommandPool-commandPool-00041)
+[2025-12-24T02:50:47Z ERROR simple_start] VALIDATION [VUID-vkDestroyFence-fence-01120 (1562993224)] : vkDestroyFence(): can't be called on VkFence 0x70000000007 that is currently in use by VkQueue 0x5621954dba90.
+    The Vulkan spec states: All queue submission commands that refer to fence must have completed execution (https://docs.vulkan.org/spec/latest/chapters/synchronization.html#VUID-vkDestroyFence-fence-01120)
+*/
+// Maybe... this is not what I want to spend my time on?
 use anyhow::Context;
 use ash::ext::debug_utils;
 use ash::{Entry, vk};
@@ -74,19 +88,42 @@ macro_rules! new_with_parent_impl {
         }
     };
 }
+macro_rules! drop_with_device_impl {
+    ($type:ty,$target:ident, $function:path ) => {
+        impl Drop for $type {
+            fn drop(&mut self) {
+                unsafe { $function(&self.device, self.$target, None) };
+            }
+        }
+    };
+}
 
 pub struct Instance {
     pub instance: Mutex<ash::Instance>,
 }
 deref_impl!(Instance, Mutex<ash::Instance>, instance);
 new_impl!(Instance, instance, ash::Instance);
+impl Drop for Instance {
+    fn drop(&mut self) {
+        unsafe {
+            // self.instance.lock().destroy_instance(None);
+        };
+    }
+}
 
 pub struct InnerDevice {
     pub instance: Arc<Instance>,
-    pub device: Mutex<ash::Device>,
-    pub pdevice: Mutex<ash::vk::PhysicalDevice>,
+    pub device: ash::Device,
+    pub pdevice: ash::vk::PhysicalDevice,
 }
-deref_impl!(InnerDevice, Mutex<ash::Device>, device);
+deref_impl!(InnerDevice, ash::Device, device);
+impl Drop for InnerDevice {
+    fn drop(&mut self) {
+        unsafe {
+            // self.device.destroy_device(None);
+        };
+    }
+}
 
 // Gah, I need an enable_shared_from_this
 #[derive(Clone)]
@@ -112,23 +149,31 @@ impl Device {
     }
     pub fn get_physical_device_memory_properties(&self) -> vk::PhysicalDeviceMemoryProperties {
         let instance = self.instance.lock();
-        let pdevice = self.pdevice.lock();
 
-        unsafe { instance.get_physical_device_memory_properties(*pdevice) }
+        unsafe { instance.get_physical_device_memory_properties(self.pdevice) }
     }
 
     pub fn create_image_tracked(
         &self,
         img_info: &vk::ImageCreateInfo<'_>,
     ) -> Result<Image, vk::Result> {
-        let image = unsafe { self.device.lock().create_image(img_info, None)? };
+        let image = unsafe { self.device.create_image(img_info, None)? };
         Ok(Image::new(self.inner.clone(), image))
     }
+
+    pub fn create_image_view_tracked(
+        &self,
+        create_info: &vk::ImageViewCreateInfo<'_>,
+    ) -> Result<ImageView, vk::Result> {
+        let view = unsafe { self.device.create_image_view(create_info, None)? };
+        Ok(ImageView::new(self.inner.clone(), view))
+    }
+
     pub fn allocate_memory_tracked(
         &self,
         memory_info: &vk::MemoryAllocateInfo,
     ) -> Result<DeviceMemory, vk::Result> {
-        let memory = unsafe { self.device.lock().allocate_memory(memory_info, None)? };
+        let memory = unsafe { self.device.allocate_memory(memory_info, None)? };
         Ok(DeviceMemory::new(self.inner.clone(), memory))
     }
 
@@ -143,10 +188,7 @@ impl Device {
         // let instance = self.instance.lock();
         let image = self.create_image_tracked(img_info)?;
 
-        let image_memory_req = unsafe {
-            let device = self.device.lock();
-            device.get_image_memory_requirements(*image)
-        };
+        let image_memory_req = unsafe { self.device.get_image_memory_requirements(*image) };
         let image_memory_index = find_memorytype_index(
             &image_memory_req,
             &device_memory_properties,
@@ -160,10 +202,7 @@ impl Device {
 
         let image_memory = self.allocate_memory_tracked(&image_allocate_info)?;
         // let image_memory = unsafe { device.allocate_memory(&image_allocate_info, None)? };
-        unsafe {
-            let device = self.device.lock();
-            device.bind_image_memory(*image, *image_memory, 0)?
-        };
+        unsafe { self.device.bind_image_memory(*image, *image_memory, 0)? };
 
         Ok(ImageBuf {
             image,
@@ -178,18 +217,17 @@ impl Device {
         buffer: &vk::CommandBuffer,
         info: &vk::CommandBufferBeginInfo,
     ) -> Result<CommandBufferWriter<'a>, vk::Result> {
-        let device = self.device.lock();
-        unsafe { device.begin_command_buffer(*buffer, &info)? };
+        unsafe { self.device.begin_command_buffer(*buffer, &info)? };
         Ok(CommandBufferWriter {
-            device,
+            device: self.device.clone(),
             finished: false,
+            _marker: Default::default(),
         })
     }
 
     pub fn get_device_queue_tracked(&self, queue_family_index: u32, queue_index: u32) -> Queue {
         let queue = unsafe {
             self.device
-                .lock()
                 .get_device_queue(queue_family_index, queue_index)
         };
         InnerQueue::new(self.inner.clone(), queue).into()
@@ -199,25 +237,22 @@ impl Device {
         &self,
         fence_create_info: &vk::FenceCreateInfo<'_>,
     ) -> Result<Fence, vk::Result> {
-        let raw_fence = unsafe { self.device.lock().create_fence(&fence_create_info, None)? };
+        let raw_fence = unsafe { self.device.create_fence(&fence_create_info, None)? };
         Ok(Fence::new(self.inner.clone(), raw_fence))
     }
     pub fn create_semaphore_tracked(
         &self,
         semaphore_create_info: &vk::SemaphoreCreateInfo<'_>,
     ) -> Result<Semaphore, vk::Result> {
-        let raw_semaphore = unsafe {
-            self.device
-                .lock()
-                .create_semaphore(&semaphore_create_info, None)?
-        };
+        let raw_semaphore = unsafe { self.device.create_semaphore(&semaphore_create_info, None)? };
         Ok(Semaphore::new(self.inner.clone(), raw_semaphore))
     }
 }
 
 pub struct CommandBufferWriter<'a> {
-    device: parking_lot::MutexGuard<'a, ash::Device>,
+    device: ash::Device,
     finished: bool,
+    _marker: std::marker::PhantomData<&'a ()>,
 }
 impl<'a> std::ops::Deref for CommandBufferWriter<'a> {
     type Target = ash::Device;
@@ -299,11 +334,7 @@ impl Queue {
         &self,
         pool_create_info: &vk::CommandPoolCreateInfo,
     ) -> Result<CommandPool, vk::Result> {
-        let pool = unsafe {
-            self.device
-                .lock()
-                .create_command_pool(&pool_create_info, None)?
-        };
+        let pool = unsafe { self.device.create_command_pool(&pool_create_info, None)? };
         Ok(CommandPool::new(self.inner.clone(), pool.into()))
     }
 }
@@ -317,6 +348,13 @@ pub struct CommandPool {
 }
 deref_impl!(CommandPool, vk::CommandPool, pool);
 new_with_parent_impl!(CommandPool, queue, Arc<InnerQueue>, pool, vk::CommandPool);
+
+impl Drop for CommandPool {
+    fn drop(&mut self) {
+        unsafe { self.queue.device.destroy_command_pool(self.pool, None) };
+    }
+}
+
 impl CommandPool {
     pub fn allocate_command_buffers_tracked(
         &self,
@@ -326,10 +364,8 @@ impl CommandPool {
         allocate_info = allocate_info.command_pool(self.pool);
 
         // Command buffers are never destroyed? They're tied to the pool, which is destroyed from the device.
-        let mut command_buffers = unsafe {
-            let device = self.queue.device.lock();
-            device.allocate_command_buffers(&allocate_info)?
-        };
+        let mut command_buffers =
+            unsafe { self.queue.device.allocate_command_buffers(&allocate_info)? };
 
         // Now we have unsafe command buffers, which we wrap.
         Ok(command_buffers
@@ -352,13 +388,8 @@ new_with_parent_impl!(
     buffer,
     vk::CommandBuffer
 );
-impl std::ops::Deref for CommandBuffer {
-    type Target = vk::CommandBuffer;
-
-    fn deref(&self) -> &Self::Target {
-        &self.buffer
-    }
-}
+deref_impl!(CommandBuffer, vk::CommandBuffer, buffer);
+//drop_with_device_impl!(CommandBuffer, buffer, ash::Device::destroy_com);
 
 pub struct Image {
     pub device: Arc<InnerDevice>,
@@ -366,6 +397,7 @@ pub struct Image {
 }
 deref_impl!(Image, vk::Image, image);
 new_with_parent_impl!(Image, device, Arc<InnerDevice>, image, vk::Image);
+drop_with_device_impl!(Image, image, ash::Device::destroy_image);
 
 pub struct DeviceMemory {
     pub device: Arc<InnerDevice>,
@@ -379,6 +411,7 @@ new_with_parent_impl!(
     memory,
     vk::DeviceMemory
 );
+drop_with_device_impl!(DeviceMemory, memory, ash::Device::free_memory);
 
 pub struct ImageView {
     pub device: Arc<InnerDevice>,
@@ -386,6 +419,7 @@ pub struct ImageView {
 }
 deref_impl!(ImageView, vk::ImageView, view);
 new_with_parent_impl!(ImageView, device, Arc<InnerDevice>, view, vk::ImageView);
+drop_with_device_impl!(ImageView, view, ash::Device::destroy_image_view);
 
 pub struct Fence {
     pub device: Arc<InnerDevice>,
@@ -393,6 +427,7 @@ pub struct Fence {
 }
 deref_impl!(Fence, vk::Fence, fence);
 new_with_parent_impl!(Fence, device, Arc<InnerDevice>, fence, vk::Fence);
+drop_with_device_impl!(Fence, fence, ash::Device::destroy_fence);
 
 pub struct Semaphore {
     pub device: Arc<InnerDevice>,

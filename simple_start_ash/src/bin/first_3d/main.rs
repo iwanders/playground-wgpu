@@ -184,7 +184,35 @@ impl LocalState {
         unsafe {
             // let device = self.ctx.device.lock();
             let device_memory_properties = self.device.get_physical_device_memory_properties();
-            let device = self.device.lock();
+
+            // Shoot I need a view now.
+            let create_view_info = vk::ImageViewCreateInfo::default()
+                .image(*self.image.image)
+                .view_type(vk::ImageViewType::TYPE_2D)
+                .format(vk::Format::R8G8B8A8_UNORM)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                });
+            let image_view = self.device.create_image_view_tracked(&create_view_info)?;
+
+            let create_depth_view = vk::ImageViewCreateInfo::default()
+                .image(*self.depth_image.image)
+                .view_type(vk::ImageViewType::TYPE_2D)
+                .format(vk::Format::D32_SFLOAT)
+                .subresource_range(vk::ImageSubresourceRange {
+                    aspect_mask: vk::ImageAspectFlags::DEPTH,
+                    base_mip_level: 0,
+                    level_count: 1,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                });
+            let depth_view = self.device.create_image_view_tracked(&create_depth_view)?;
+
+            let device = &self.device;
             // Lets build a pipeline!
             // https://github.com/SaschaWillems/Vulkan/blob/b9f0ac91d2adccc3055a904d3a8f6553b10ff6cd/examples/renderheadless/renderheadless.cpp#L508
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp#L301
@@ -491,32 +519,6 @@ impl LocalState {
             let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
                 .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
-            // Shoot I need a view now.
-            let create_view_info = vk::ImageViewCreateInfo::default()
-                .image(*self.image.image)
-                .view_type(vk::ImageViewType::TYPE_2D)
-                .format(vk::Format::R8G8B8A8_UNORM)
-                .subresource_range(vk::ImageSubresourceRange {
-                    aspect_mask: vk::ImageAspectFlags::COLOR,
-                    base_mip_level: 0,
-                    level_count: 1,
-                    base_array_layer: 0,
-                    layer_count: 1,
-                });
-            let image_view = device.create_image_view(&create_view_info, None)?;
-
-            let create_depth_view = vk::ImageViewCreateInfo::default()
-                .image(*self.depth_image.image)
-                .view_type(vk::ImageViewType::TYPE_2D)
-                .format(vk::Format::D32_SFLOAT)
-                .subresource_range(vk::ImageSubresourceRange {
-                    aspect_mask: vk::ImageAspectFlags::DEPTH,
-                    base_mip_level: 0,
-                    level_count: 1,
-                    base_array_layer: 0,
-                    layer_count: 1,
-                });
-            let depth_view = device.create_image_view(&create_depth_view, None)?;
             drop(device);
             let writer = self
                 .device
@@ -530,7 +532,7 @@ impl LocalState {
 
             let color_attachment_info = vk::RenderingAttachmentInfo::default()
                 .image_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-                .image_view(image_view)
+                .image_view(*image_view)
                 .resolve_mode(vk::ResolveModeFlags::NONE)
                 .load_op(vk::AttachmentLoadOp::CLEAR) // This should be clear to actually clear it.
                 .store_op(vk::AttachmentStoreOp::STORE)
@@ -538,7 +540,7 @@ impl LocalState {
             // let mut color_attachments = [color_attachment_info; 4];
             let depth_attachment_info = vk::RenderingAttachmentInfo::default()
                 .image_layout(vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL)
-                .image_view(depth_view)
+                .image_view(*depth_view)
                 .resolve_mode(vk::ResolveModeFlags::NONE)
                 .load_op(vk::AttachmentLoadOp::CLEAR) // This should be clear to actually clear it.
                 .store_op(vk::AttachmentStoreOp::DONT_CARE)
@@ -640,7 +642,7 @@ impl LocalState {
             writer.finish(&self.draw_command_buffer)?;
 
             let command_buffers = vec![*self.draw_command_buffer];
-            let device = self.device.lock();
+            let device = &self.device;
             device.reset_fences(&[*self.draw_commands_reuse_fence])?;
 
             let sema = [*self.rendering_complete_semaphore];

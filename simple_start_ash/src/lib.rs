@@ -527,7 +527,7 @@ impl State {
             writer.finish(&*self.draw_command_buffer)?;
 
             let command_buffers = vec![*self.draw_command_buffer];
-            let device = self.device.lock();
+            let device = &self.device;
             device.reset_fences(&[*self.draw_commands_reuse_fence])?;
 
             let sema = [*self.rendering_complete_semaphore];
@@ -549,7 +549,7 @@ impl State {
         // Then, we map the memory, and copy it...
         //
         let data = {
-            let device = self.device.lock();
+            let device = &self.device;
             let mut res = vec![];
 
             let subres = vk::ImageSubresource::default().aspect_mask(vk::ImageAspectFlags::COLOR);
