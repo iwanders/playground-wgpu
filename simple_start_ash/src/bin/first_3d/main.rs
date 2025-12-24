@@ -182,9 +182,9 @@ impl LocalState {
         cam.target = (0.0, 0.0, 0.0).into();
         // let camera_mat = cam.to_view_projection_matrix();
         unsafe {
-            let device_memory_properties = self
-                .instance
-                .get_physical_device_memory_properties(self.pdevice);
+            // let device = self.ctx.device.lock();
+            let device_memory_properties = self.ctx.get_physical_device_memory_properties();
+            let device = self.ctx.device.lock();
             // Lets build a pipeline!
             // https://github.com/SaschaWillems/Vulkan/blob/b9f0ac91d2adccc3055a904d3a8f6553b10ff6cd/examples/renderheadless/renderheadless.cpp#L508
             // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering/dynamic_rendering.cpp#L301
@@ -194,12 +194,10 @@ impl LocalState {
                 .size(std::mem::size_of::<FramePush>() as u32);
             let layout_create_info = vk::PipelineLayoutCreateInfo::default()
                 .push_constant_ranges(std::slice::from_ref(&constant_range));
-            let layout = self
-                .device
-                .create_pipeline_layout(&layout_create_info, None)?;
+            let layout = device.create_pipeline_layout(&layout_create_info, None)?;
 
             let cache_info = vk::PipelineCacheCreateInfo::default();
-            let pipeline_cache = self.device.create_pipeline_cache(&cache_info, None)?;
+            let pipeline_cache = device.create_pipeline_cache(&cache_info, None)?;
 
             let index_buffer_data = indices;
             let index_buffer_info = vk::BufferCreateInfo::default()
@@ -207,8 +205,8 @@ impl LocalState {
                 .usage(vk::BufferUsageFlags::INDEX_BUFFER)
                 .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
-            let index_buffer = self.device.create_buffer(&index_buffer_info, None).unwrap();
-            let index_buffer_memory_req = self.device.get_buffer_memory_requirements(index_buffer);
+            let index_buffer = device.create_buffer(&index_buffer_info, None).unwrap();
+            let index_buffer_memory_req = device.get_buffer_memory_requirements(index_buffer);
             let index_buffer_memory_index = simple_start::find_memorytype_index(
                 &index_buffer_memory_req,
                 &device_memory_properties,
@@ -221,12 +219,8 @@ impl LocalState {
                 memory_type_index: index_buffer_memory_index,
                 ..Default::default()
             };
-            let index_buffer_memory = self
-                .device
-                .allocate_memory(&index_allocate_info, None)
-                .unwrap();
-            let index_ptr = self
-                .device
+            let index_buffer_memory = device.allocate_memory(&index_allocate_info, None).unwrap();
+            let index_ptr = device
                 .map_memory(
                     index_buffer_memory,
                     0,
@@ -240,8 +234,8 @@ impl LocalState {
                 index_buffer_memory_req.size,
             );
             index_slice.copy_from_slice(&index_buffer_data);
-            self.device.unmap_memory(index_buffer_memory);
-            self.device
+            device.unmap_memory(index_buffer_memory);
+            device
                 .bind_buffer_memory(index_buffer, index_buffer_memory, 0)
                 .unwrap();
 
@@ -252,14 +246,12 @@ impl LocalState {
                 ..Default::default()
             };
 
-            let vertex_input_buffer = self
-                .device
+            let vertex_input_buffer = device
                 .create_buffer(&vertex_input_buffer_info, None)
                 .unwrap();
 
-            let vertex_input_buffer_memory_req = self
-                .device
-                .get_buffer_memory_requirements(vertex_input_buffer);
+            let vertex_input_buffer_memory_req =
+                device.get_buffer_memory_requirements(vertex_input_buffer);
 
             let vertex_input_buffer_memory_index = simple_start::find_memorytype_index(
                 &vertex_input_buffer_memory_req,
@@ -274,13 +266,11 @@ impl LocalState {
                 ..Default::default()
             };
 
-            let vertex_input_buffer_memory = self
-                .device
+            let vertex_input_buffer_memory = device
                 .allocate_memory(&vertex_buffer_allocate_info, None)
                 .unwrap();
 
-            let vert_ptr = self
-                .device
+            let vert_ptr = device
                 .map_memory(
                     vertex_input_buffer_memory,
                     0,
@@ -295,8 +285,8 @@ impl LocalState {
                 vertex_input_buffer_memory_req.size,
             );
             vert_align.copy_from_slice(&vertices);
-            self.device.unmap_memory(vertex_input_buffer_memory);
-            self.device
+            device.unmap_memory(vertex_input_buffer_memory);
+            device
                 .bind_buffer_memory(vertex_input_buffer, vertex_input_buffer_memory, 0)
                 .unwrap();
 
@@ -340,13 +330,11 @@ impl LocalState {
                 .expect("Failed to read fragment shader spv file");
             let frag_shader_info = vk::ShaderModuleCreateInfo::default().code(&frag_code);
 
-            let vertex_shader_module = self
-                .device
+            let vertex_shader_module = device
                 .create_shader_module(&vertex_shader_info, None)
                 .expect("Vertex shader module error");
 
-            let fragment_shader_module = self
-                .device
+            let fragment_shader_module = device
                 .create_shader_module(&frag_shader_info, None)
                 .expect("Fragment shader module error");
 
@@ -489,8 +477,7 @@ impl LocalState {
                 .dynamic_state(&dynamic_state_info)
                 .layout(layout);
 
-            let pipelines = self
-                .device
+            let pipelines = device
                 .create_graphics_pipelines(
                     pipeline_cache,
                     std::slice::from_ref(&graphic_pipeline_info),
@@ -502,14 +489,6 @@ impl LocalState {
             //
             let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
                 .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-
-            let writer = self
-                .ctx
-                .record_command_buffer(&self.draw_command_buffer, &command_buffer_begin_info)?;
-            // self.device
-            //     .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
-
-            // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering_local_read/dynamic_rendering_local_read.cpp#L878C39-L878C60
 
             // Shoot I need a view now.
             let create_view_info = vk::ImageViewCreateInfo::default()
@@ -523,7 +502,7 @@ impl LocalState {
                     base_array_layer: 0,
                     layer_count: 1,
                 });
-            let image_view = self.device.create_image_view(&create_view_info, None)?;
+            let image_view = device.create_image_view(&create_view_info, None)?;
 
             let create_depth_view = vk::ImageViewCreateInfo::default()
                 .image(self.depth_image.image)
@@ -536,7 +515,15 @@ impl LocalState {
                     base_array_layer: 0,
                     layer_count: 1,
                 });
-            let depth_view = self.device.create_image_view(&create_depth_view, None)?;
+            let depth_view = device.create_image_view(&create_depth_view, None)?;
+            drop(device);
+            let writer = self
+                .ctx
+                .record_command_buffer(&self.draw_command_buffer, &command_buffer_begin_info)?;
+            // self.device
+            //     .begin_command_buffer(self.draw_command_buffer, &command_buffer_begin_info)?;
+
+            // https://github.com/KhronosGroup/Vulkan-Samples/blob/97fcdeecf2db26a78b432b285af3869a65bb00bd/samples/extensions/dynamic_rendering_local_read/dynamic_rendering_local_read.cpp#L878C39-L878C60
 
             let clear_value = make_clear_rgba(1.0, 0.0, 0.0, 0.2);
 
@@ -637,16 +624,15 @@ impl LocalState {
             if DRAW_INDICED {
                 writer.cmd_draw_indexed(self.draw_command_buffer, indices.len() as _, 1, 0, 0, 0);
             } else {
-                self.device
-                    .cmd_draw(self.draw_command_buffer, vertices.len() as _, 1, 0, 0);
+                writer.cmd_draw(self.draw_command_buffer, vertices.len() as _, 1, 0, 0);
             }
             writer.cmd_end_rendering(self.draw_command_buffer);
             // self.device.end_command_buffer(self.draw_command_buffer)?;
             writer.finish(&self.draw_command_buffer)?;
 
             let command_buffers = vec![self.draw_command_buffer];
-            self.device
-                .reset_fences(&[self.draw_commands_reuse_fence])?;
+            let device = self.ctx.device.lock();
+            device.reset_fences(&[self.draw_commands_reuse_fence])?;
 
             let sema = [self.rendering_complete_semaphore];
             let submit_info = vk::SubmitInfo::default()
@@ -654,12 +640,9 @@ impl LocalState {
                 .wait_dst_stage_mask(&[])
                 .command_buffers(&command_buffers)
                 .signal_semaphores(&[]);
-
-            self.device
-                .queue_submit(self.queue, &[submit_info], self.draw_commands_reuse_fence)?;
+            device.queue_submit(self.queue, &[submit_info], self.draw_commands_reuse_fence)?;
             let timeout = 1_000_000; // in nanoseconds.
-            self.device
-                .wait_for_fences(&[self.draw_commands_reuse_fence], true, timeout)?;
+            device.wait_for_fences(&[self.draw_commands_reuse_fence], true, timeout)?;
             // std::thread::sleep(std::time::Duration::from_secs(1));
         }
         Ok(())

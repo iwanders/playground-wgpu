@@ -94,6 +94,8 @@ use parking_lot::Mutex;
 //
 // How do we clear this all up correctly... maybe that's where that gpu allocator comes in for memory at least? Since they
 // are all tied to that?
+//
+// Maybe we just make something that is _mostly correct_?
 
 /// A context that holds the key functionality to interact with the vulkan stuff?
 pub struct Ctx {
@@ -110,6 +112,14 @@ impl Drop for Ctx {
 }
 pub type CtxPtr = Arc<Ctx>;
 impl Ctx {
+    pub fn get_physical_device_memory_properties(&self) -> vk::PhysicalDeviceMemoryProperties {
+        let instance = self.instance.lock();
+        let pdevice = self.pdevice.lock();
+
+        unsafe { instance.get_physical_device_memory_properties(*pdevice) }
+    }
+    // Lets build a pipeline!}
+
     pub fn create_image_owned(
         &self,
         img_info: &vk::ImageCreateInfo,
@@ -261,9 +271,9 @@ pub struct ImageBuf {
 pub struct State {
     pub ctx: Ctx,
 
-    pub instance: ash::Instance,
-    pub device: ash::Device,
-    pub pdevice: ash::vk::PhysicalDevice,
+    // pub instance: ash::Instance,
+    // pub device: ash::Device,
+    // pub pdevice: ash::vk::PhysicalDevice,
     pub queue: vk::Queue,
     pub pool: vk::CommandPool,
     pub setup_command_buffer: vk::CommandBuffer,
@@ -602,9 +612,9 @@ impl State {
             unsafe { device.create_semaphore(&semaphore_create_info, None)? };
 
         Ok(State {
-            instance,
-            device,
-            pdevice,
+            // instance,
+            // device,
+            // pdevice,
             ctx,
             width,
             height,
@@ -711,8 +721,8 @@ impl State {
             writer.finish(&self.draw_command_buffer)?;
 
             let command_buffers = vec![self.draw_command_buffer];
-            self.device
-                .reset_fences(&[self.draw_commands_reuse_fence])?;
+            let device = self.ctx.device.lock();
+            device.reset_fences(&[self.draw_commands_reuse_fence])?;
 
             let sema = [self.rendering_complete_semaphore];
             let submit_info = vk::SubmitInfo::default()
@@ -721,27 +731,23 @@ impl State {
                 .command_buffers(&command_buffers)
                 .signal_semaphores(&[]);
 
-            self.device
-                .queue_submit(self.queue, &[submit_info], self.draw_commands_reuse_fence)?;
+            device.queue_submit(self.queue, &[submit_info], self.draw_commands_reuse_fence)?;
             let timeout = 1_000_000; // in nanoseconds.
-            self.device
-                .wait_for_fences(&[self.draw_commands_reuse_fence], true, timeout)?;
+            device.wait_for_fences(&[self.draw_commands_reuse_fence], true, timeout)?;
         };
 
         let image_memory = image.image;
         // Then, we map the memory, and copy it...
         //
         let data = {
+            let device = self.ctx.device.lock();
             let mut res = vec![];
 
             let subres = vk::ImageSubresource::default().aspect_mask(vk::ImageAspectFlags::COLOR);
-            let layout = unsafe {
-                self.device
-                    .get_image_subresource_layout(image.image, subres)
-            };
+            let layout = unsafe { device.get_image_subresource_layout(image.image, subres) };
             info!("layout: {layout:#?}");
             unsafe {
-                let mut raw_location = self.device.map_memory(
+                let mut raw_location = device.map_memory(
                     image.memory,
                     0,
                     vk::WHOLE_SIZE,
