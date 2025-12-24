@@ -207,7 +207,7 @@ impl LocalState {
 
             let index_buffer = device.create_buffer(&index_buffer_info, None).unwrap();
             let index_buffer_memory_req = device.get_buffer_memory_requirements(index_buffer);
-            let index_buffer_memory_index = simple_start::find_memorytype_index(
+            let index_buffer_memory_index = simple_start::pyroclastic::find_memorytype_index(
                 &index_buffer_memory_req,
                 &device_memory_properties,
                 vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
@@ -253,12 +253,13 @@ impl LocalState {
             let vertex_input_buffer_memory_req =
                 device.get_buffer_memory_requirements(vertex_input_buffer);
 
-            let vertex_input_buffer_memory_index = simple_start::find_memorytype_index(
-                &vertex_input_buffer_memory_req,
-                &device_memory_properties,
-                vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
-            )
-            .expect("Unable to find suitable memorytype for the vertex buffer.");
+            let vertex_input_buffer_memory_index =
+                simple_start::pyroclastic::find_memorytype_index(
+                    &vertex_input_buffer_memory_req,
+                    &device_memory_properties,
+                    vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+                )
+                .expect("Unable to find suitable memorytype for the vertex buffer.");
 
             let vertex_buffer_allocate_info = vk::MemoryAllocateInfo {
                 allocation_size: vertex_input_buffer_memory_req.size,
