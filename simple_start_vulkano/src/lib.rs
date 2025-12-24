@@ -16,6 +16,12 @@ use vulkano::instance::{Instance, InstanceCreateFlags, InstanceCreateInfo};
 use vulkano::memory::allocator::StandardMemoryAllocator;
 use vulkano::memory::allocator::{AllocationCreateInfo, MemoryTypeFilter};
 use vulkano::sync::{self, GpuFuture};
+pub mod vulkano_util;
+
+pub mod prelude {
+    use super::*;
+    pub use vulkano_util::BufferHelpers;
+}
 
 pub struct State {
     pub instance: Arc<Instance>,

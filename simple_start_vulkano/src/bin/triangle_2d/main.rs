@@ -203,6 +203,22 @@ impl LocalState {
         )
         .unwrap();
 
+        use simple_start::prelude::*;
+        let index_buffer = Buffer::from_slice(
+            self.memory_allocator.clone(),
+            BufferCreateInfo {
+                usage: BufferUsage::INDEX_BUFFER,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE
+                    | MemoryTypeFilter::HOST_SEQUENTIAL_WRITE,
+                ..Default::default()
+            },
+            indices,
+        )
+        .unwrap();
+
         let render_pass = vulkano::single_pass_renderpass!(
             self.device.clone(),
             attachments: {
@@ -345,7 +361,7 @@ impl LocalState {
             builder
                 .begin_render_pass(
                     RenderPassBeginInfo {
-                        clear_values: vec![Some([0.0, 0.0, 1.0, 1.0].into())],
+                        clear_values: vec![Some([0.0, 0.0, 1.0, 0.1].into())],
                         ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
                     },
                     SubpassBeginInfo {
@@ -359,14 +375,12 @@ impl LocalState {
                 .unwrap()
                 .bind_vertex_buffers(0, vertex_buffer.clone())
                 .unwrap()
+                .bind_index_buffer(index_buffer.clone())
+                .unwrap()
                 .push_constants(pipeline.layout().clone(), 0, push_constants)
                 .unwrap()
-                .draw(
-                    vertices.len() as u32,
-                    1,
-                    0,
-                    0, // 3 is the number of vertices, 1 is the number of instances
-                )
+                .draw_indexed(indices.len() as u32, 1, 0, 0, 0)
+                // .draw(vertices.len() as u32, 1, 0, 0)
                 .unwrap()
                 .end_render_pass(SubpassEndInfo::default())
                 .unwrap();

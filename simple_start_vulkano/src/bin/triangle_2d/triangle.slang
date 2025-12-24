@@ -32,7 +32,7 @@ struct VertexOut
 };
 
 [shader("vertex")]
-VertexOut vertexMain(VertexIn input, uniform FramePush   push_data)
+VertexOut vertexMain(VertexIn input, uniform FramePush push_data)
 {
 	VertexOut output;
 	output.color =  input.color ;
