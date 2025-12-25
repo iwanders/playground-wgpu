@@ -220,56 +220,32 @@ impl simple_start::Drawable for LocalState {
 
         let l1_theta = simple_start::get_angle_f32(1.2);
         let l2_theta = -simple_start::get_angle_f32(0.7) + 3.14;
-        let r1 = 1.0;
-        let hardness = 20.0;
-        let kd = 0.5;
-        let ks = 0.9;
-        let sun_light = 0.01;
 
         let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
-            simple_start::lights::Light::omni()
-                .with_position([0.3, 0.3, 0.3])
+            simple_start::lights::Light::directional() // sun left
                 .with_direction([1.0, 1.0, 1.0])
                 .with_intensity(5.5)
                 .with_color([0.3, 0.3, 0.3]),
+            simple_start::lights::Light::directional() // sun right
+                .with_direction([1.0, -1.0, 1.0])
+                .with_intensity(5.5)
+                .with_color([0.3, 0.3, 0.3]),
+            simple_start::lights::Light::directional() // Orbitter red
+                .with_direction([l1_theta.cos(), l1_theta.sin(), 0.1])
+                .with_intensity(5.5)
+                .with_color([1.0, 0.5, 0.5]),
+            simple_start::lights::Light::directional() // Orbitter green
+                .with_direction([l2_theta.cos(), l2_theta.sin(), 0.1])
+                .with_intensity(5.5)
+                .with_color([0.5, 0.5, 0.1]),
         ]);
 
         let gpu_lights = lights.to_gpu();
-
-        let lights = vec![
-            Light {
-                color: vec3a(1.0, 0.5, 0.5),
-                direction: vec3a(l1_theta.cos() * r1, l1_theta.sin() * r1, 0.1),
-                hardness_kd_ks: vec3a(hardness, kd, ks),
-            },
-            Light {
-                color: vec3a(0.5, 0.5, 0.1),
-                direction: vec3a(l2_theta.cos() * r1, l2_theta.sin() * r1, 0.1),
-                hardness_kd_ks: vec3a(hardness, kd, ks),
-            },
-            // Two 'suns' on the sides of the dragon.
-            Light {
-                color: vec3a(0.3, 0.3, 0.3),
-                direction: vec3a(1.0, 1.0, 1.0),
-                hardness_kd_ks: vec3a(sun_light, 1.0, 0.0),
-            },
-            Light {
-                color: vec3a(0.3, 0.3, 0.3),
-                direction: vec3a(1.0, -1.0, 1.0),
-                hardness_kd_ks: vec3a(sun_light, 1.0, 0.0),
-            },
-        ];
 
         let destination = state.target.destination()?;
         let width = destination.width();
         let height = destination.height();
         state.camera.aspect = width as f32 / height as f32;
-
-        let light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Light buffer"),
-            contents: lights.as_bytes(),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
 
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
 
@@ -323,29 +299,8 @@ impl simple_start::Drawable for LocalState {
         });
 
         let light_bind_group_layout = gpu_lights.light_bind_group_layout;
-        /*
-        let light_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-             entries: &[wgpu::BindGroupLayoutEntry {
-                 binding: 1,
-                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                 ty: wgpu::BindingType::Buffer {
-                     ty: wgpu::BufferBindingType::Storage { read_only: true },
-                     has_dynamic_offset: false,
-                     min_binding_size: None,
-                 },
-                 count: None,
-             }],
-             label: Some("light_bind_group_layout"),
-         });*/
         let light_bind_group = gpu_lights.light_bind_group;
-        // let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        //     layout: &light_bind_group_layout,
-        //     entries: &[wgpu::BindGroupEntry {
-        //         binding: 1,
-        //         resource: light_buffer.as_entire_binding(),
-        //     }],
-        //     label: Some("light_bind_group"),
-        // });
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),

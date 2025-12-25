@@ -21,81 +21,23 @@ pub struct Light {
     pub position: Vec3A,
     pub direction: Vec3A,
     pub color: Vec3, // do lights have alpha?
-    // pub _pad0: [u8; 4],
     pub intensity: f32,
     pub light_type: LightType,
     // something something falloff..?
     pub _pad1: [u8; 12],
 }
-#[cfg(test)]
-mod test {
-    use super::*;
-    // First arg is https://docs.rs/naga/latest/naga/ir/struct.StructMember.html
-    #[macro_export]
-    macro_rules! verify_field {
-        ($Container:ty, $field:expr, $members:expr) => {
-            let mut found: bool = false;
-            for member in $members.iter() {
-                let name = std::stringify!($field);
-                if member.name.as_ref().map(|v| v.as_str()) == Some(name) {
-                    let rust_offset = std::mem::offset_of!($Container, $field) as u32;
-                    // Verify the offset.
-                    assert_eq!(
-                        member.offset, rust_offset,
-                        "offset of member {} does not match rust; {}, wgsl: {}",
-                        name, rust_offset, member.offset
-                    );
-                    found = true;
-                }
-            }
-            if !found {
-                assert!(false, "could not find member {}", std::stringify!($field));
-            }
-        };
-    }
-
-    #[test]
-    fn test_light_struct_align() {
-        let module = naga::front::wgsl::parse_str(
-            "struct Light {
-            position: vec3f,
-            direction: vec3f,
-            color: vec3f,
-            intensity: f32,
-            light_type: u32,
-            // hardness_kd_ks: vec3f,
-        };",
-        )
-        .unwrap();
-        // Find our struct type
-
-        let our_struct_type = module
-            .types
-            .iter()
-            .find(|z| z.1.name.as_ref().map(|v| v.as_str()) == Some("Light"))
-            .unwrap();
-        if let naga::ir::TypeInner::Struct { members, span } = &our_struct_type.1.inner {
-            verify_field!(Light, position, members);
-            verify_field!(Light, direction, members);
-            verify_field!(Light, color, members);
-            verify_field!(Light, intensity, members);
-            verify_field!(Light, light_type, members);
-            assert_eq!(
-                std::mem::size_of::<Light>() as u32,
-                *span,
-                "Rust struct size does not match expected wgsl length: {}",
-                *span
-            );
-        } else {
-            panic!("Incorrect type found");
-        };
-    }
-}
+// Tested at the bottom.
 
 impl Light {
     pub fn omni() -> Self {
         Light {
             light_type: LightType::Omni,
+            ..Default::default()
+        }
+    }
+    pub fn directional() -> Self {
+        Light {
+            light_type: LightType::Directional,
             ..Default::default()
         }
     }
@@ -186,4 +128,68 @@ pub struct GpuLights {
     pub light_buffer: wgpu::Buffer,
     pub light_bind_group_layout: wgpu::BindGroupLayout,
     pub light_bind_group: wgpu::BindGroup,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    // First arg is https://docs.rs/naga/latest/naga/ir/struct.StructMember.html
+    #[macro_export]
+    macro_rules! verify_field {
+        ($Container:ty, $field:expr, $members:expr) => {
+            let mut found: bool = false;
+            for member in $members.iter() {
+                let name = std::stringify!($field);
+                if member.name.as_ref().map(|v| v.as_str()) == Some(name) {
+                    let rust_offset = std::mem::offset_of!($Container, $field) as u32;
+                    // Verify the offset.
+                    assert_eq!(
+                        member.offset, rust_offset,
+                        "offset of member {} does not match rust; {}, wgsl: {}",
+                        name, rust_offset, member.offset
+                    );
+                    found = true;
+                }
+            }
+            if !found {
+                assert!(false, "could not find member {}", std::stringify!($field));
+            }
+        };
+    }
+
+    #[test]
+    fn test_light_struct_align() {
+        let module = naga::front::wgsl::parse_str(
+            "struct Light {
+            position: vec3f,
+            direction: vec3f,
+            color: vec3f,
+            intensity: f32,
+            light_type: u32,
+            // hardness_kd_ks: vec3f,
+        };",
+        )
+        .unwrap();
+
+        let our_struct_type = module
+            .types
+            .iter()
+            .find(|z| z.1.name.as_ref().map(|v| v.as_str()) == Some("Light"))
+            .unwrap();
+        if let naga::ir::TypeInner::Struct { members, span } = &our_struct_type.1.inner {
+            verify_field!(Light, position, members);
+            verify_field!(Light, direction, members);
+            verify_field!(Light, color, members);
+            verify_field!(Light, intensity, members);
+            verify_field!(Light, light_type, members);
+            assert_eq!(
+                std::mem::size_of::<Light>() as u32,
+                *span,
+                "Rust struct size does not match expected wgsl length: {}",
+                *span
+            );
+        } else {
+            panic!("Incorrect type found");
+        };
+    }
 }

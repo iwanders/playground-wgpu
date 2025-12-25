@@ -8,18 +8,12 @@ struct CameraUniform {
 var<uniform> our_uniform: CameraUniform;
 
 
-// pub position: Vec3A,
-// pub direction: Vec3A,
-// pub color: Vec3A, // do lights have alpha?
-// pub intensity: f32,
-// pub light_type: LightType,
-
 struct Light {
-position: vec3f,
-direction: vec3f,
-color: vec3f,
-intensity: f32,
-light_type: u32,
+    position: vec3f,
+    direction: vec3f,
+    color: vec3f,
+    intensity: f32,
+    light_type: u32,
     // hardness_kd_ks: vec3f,
 };
 struct LightUniform {
