@@ -156,7 +156,22 @@ impl simple_start::Drawable for LocalState {
     fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error> {
         state.camera.eye = vec3(-0.6, -0.65, 0.43);
         let device = &state.device;
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+
+        const USE_SPIRV_SHADER: bool = false;
+        /*
+         * Nope
+        Caused by:
+          In Device::create_shader_module, label = 'shader.spv'
+
+        Shader 'shader.spv' parsing error: UnsupportedInstruction(Function, CopyLogical)
+
+        */
+
+        let shader = if USE_SPIRV_SHADER {
+            device.create_shader_module(wgpu::include_spirv!("shader.spv"))
+        } else {
+            device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"))
+        };
 
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
