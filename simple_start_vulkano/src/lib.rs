@@ -30,6 +30,7 @@ pub struct State {
     pub queue: Arc<Queue>,
     pub memory_allocator: Arc<StandardMemoryAllocator>,
     pub image: Arc<Image>,
+    pub depth_image: Arc<Image>,
     // instance: wgpu::Instance,
     // surface: wgpu::Surface<'static>,
     // pub device: wgpu::Device,
@@ -108,14 +109,32 @@ impl State {
                 memory_type_filter: MemoryTypeFilter::PREFER_DEVICE,
                 ..Default::default()
             },
-        )
-        .unwrap();
+        )?;
+
+        let depth_image = Image::new(
+            memory_allocator.clone(),
+            ImageCreateInfo {
+                image_type: ImageType::Dim2d,
+                format: Format::D32_SFLOAT,
+                extent: [width, height, 1],
+                usage: ImageUsage::TRANSFER_DST
+                    | ImageUsage::TRANSFER_SRC
+                    | ImageUsage::DEPTH_STENCIL_ATTACHMENT,
+                ..Default::default()
+            },
+            AllocationCreateInfo {
+                memory_type_filter: MemoryTypeFilter::PREFER_DEVICE,
+                ..Default::default()
+            },
+        )?;
+
         Ok(State {
             instance,
             device,
             queue,
             memory_allocator,
             image,
+            depth_image,
             // buffer,
             width,
             height,

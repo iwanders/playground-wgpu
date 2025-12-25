@@ -15,15 +15,16 @@ use vulkano::command_buffer::{
     SubpassContents, SubpassEndInfo,
 };
 use vulkano::command_buffer::{ClearColorImageInfo, CommandBufferUsage};
-use vulkano::format::ClearColorValue;
 use vulkano::format::Format;
+use vulkano::format::{ClearColorValue, ClearValue};
 use vulkano::image::view::ImageView;
 use vulkano::memory::allocator::{AllocationCreateInfo, MemoryTypeFilter};
 use vulkano::pipeline::graphics::GraphicsPipelineCreateInfo;
 use vulkano::pipeline::graphics::color_blend::{ColorBlendAttachmentState, ColorBlendState};
+use vulkano::pipeline::graphics::depth_stencil::{DepthState, DepthStencilState};
 use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
 use vulkano::pipeline::graphics::multisample::MultisampleState;
-use vulkano::pipeline::graphics::rasterization::RasterizationState;
+use vulkano::pipeline::graphics::rasterization::{CullMode, FrontFace, RasterizationState};
 use vulkano::pipeline::graphics::vertex_input::{Vertex, VertexDefinition};
 use vulkano::pipeline::graphics::viewport::{Viewport, ViewportState};
 use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
@@ -228,29 +229,24 @@ impl LocalState {
                     load_op: Clear,
                     store_op: Store,
                 },
+                depth_stencil: {
+                    format: Format::D32_SFLOAT,
+                    samples: 1,
+                    load_op: Clear,
+                    store_op: DontCare,
+                },
             },
             pass: {
                 color: [color],
-                depth_stencil: {},
+                depth_stencil: {depth_stencil},
             },
         )
         .unwrap();
 
-        let command_buffer_allocator = StandardCommandBufferAllocator::new(
-            self.device.clone(),
-            StandardCommandBufferAllocatorCreateInfo::default(),
-        );
         let command_buffer_allocator = Arc::new(StandardCommandBufferAllocator::new(
             self.device.clone(),
             StandardCommandBufferAllocatorCreateInfo::default(),
         ));
-
-        let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
-            command_buffer_allocator.clone(),
-            self.queue.queue_family_index(),
-            CommandBufferUsage::OneTimeSubmit,
-        )
-        .unwrap();
 
         let viewport = Viewport {
             offset: [0.0, 0.0],
@@ -314,18 +310,34 @@ impl LocalState {
                         ..Default::default()
                     }),
                     // Ignore these for now.
-                    rasterization_state: Some(RasterizationState::default()),
                     multisample_state: Some(MultisampleState::default()),
                     color_blend_state: Some(ColorBlendState::with_attachment_states(
                         subpass.num_color_attachments(),
                         ColorBlendAttachmentState::default(),
                     )),
+                    // depth_stencil_state: Some(DepthStencilState {
+                    //     depth: Some(DepthState::simple()),
+                    //     ..Default::default()
+                    // }),
+                    depth_stencil_state: Some(DepthStencilState {
+                        depth: Some(DepthState {
+                            write_enable: true,
+                            compare_op: vulkano::pipeline::graphics::depth_stencil::CompareOp::Less,
+                        }),
+                        ..Default::default()
+                    }),
+                    // rasterization_state: Some(RasterizationState::default()),
+                    rasterization_state: Some(RasterizationState {
+                        cull_mode: CullMode::Back,
+                        front_face: FrontFace::CounterClockwise,
+                        ..Default::default()
+                    }),
                     // This graphics pipeline object concerns the first pass of the render pass.
                     subpass: Some(subpass.into()),
+
                     ..GraphicsPipelineCreateInfo::layout(layout)
                 },
-            )
-            .unwrap()
+            )?
         };
 
         let mut builder = AutoCommandBufferBuilder::primary(
@@ -336,12 +348,13 @@ impl LocalState {
         .unwrap();
 
         let render_output_image_view = ImageView::new_default(self.image.clone()).unwrap();
+        let depth_image_view = ImageView::new_default(self.depth_image.clone()).unwrap();
 
         let framebuffer = Framebuffer::new(
             render_pass,
             FramebufferCreateInfo {
                 // Attach the offscreen image to the framebuffer.
-                attachments: vec![render_output_image_view.clone()],
+                attachments: vec![render_output_image_view.clone(), depth_image_view.clone()],
                 ..Default::default()
             },
         )
@@ -361,29 +374,25 @@ impl LocalState {
             builder
                 .begin_render_pass(
                     RenderPassBeginInfo {
-                        clear_values: vec![Some([0.0, 0.0, 1.0, 0.1].into())],
+                        clear_values: vec![
+                            Some([0.0, 0.0, 1.0, 0.1].into()),
+                            Some(ClearValue::Depth(1.000)),
+                        ],
                         ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
                     },
                     SubpassBeginInfo {
                         contents: SubpassContents::Inline,
                         ..Default::default()
                     },
-                )
-                .unwrap()
+                )?
                 // new stuff
-                .bind_pipeline_graphics(pipeline.clone())
-                .unwrap()
-                .bind_vertex_buffers(0, vertex_buffer.clone())
-                .unwrap()
-                .bind_index_buffer(index_buffer.clone())
-                .unwrap()
-                .push_constants(pipeline.layout().clone(), 0, push_constants)
-                .unwrap()
-                .draw_indexed(indices.len() as u32, 1, 0, 0, 0)
-                // .draw(vertices.len() as u32, 1, 0, 0)
-                .unwrap()
-                .end_render_pass(SubpassEndInfo::default())
-                .unwrap();
+                .bind_pipeline_graphics(pipeline.clone())?
+                .bind_vertex_buffers(0, vertex_buffer.clone())?
+                .bind_index_buffer(index_buffer.clone())?
+                .push_constants(pipeline.layout().clone(), 0, push_constants)?
+                .draw_indexed(indices.len() as u32, 1, 0, 0, 0)?
+                // .draw(vertices.len() as u32, 1, 0, 0)?
+                .end_render_pass(SubpassEndInfo::default())?;
         }
 
         let command_buffer = builder.build().unwrap();
