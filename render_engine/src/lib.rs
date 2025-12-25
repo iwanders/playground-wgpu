@@ -32,6 +32,8 @@ pub enum Error {
     RequestDevice(#[from] wgpu::RequestDeviceError),
     #[error("failed to obtain surface: {0:?}")]
     SurfaceError(#[from] wgpu::SurfaceError),
+    #[error("anyhow: {0:?}")]
+    AnyhowError(#[from] anyhow::Error),
 }
 
 pub struct State {
@@ -93,6 +95,7 @@ impl State {
     }
 
     pub async fn save<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        self.target.save(path).await?;
         Ok(())
     }
 
@@ -135,6 +138,32 @@ impl State {
         &self,
         encoder: &mut wgpu::CommandEncoder,
     ) -> Result<(), anyhow::Error> {
+        /*
+        if self.surface.is_none() {
+            let extent = wgpu::Extent3d {
+                // 2.
+                width: self.width.max(1),
+                height: self.height.max(1),
+                depth_or_array_layers: 1,
+            };
+            encoder.copy_texture_to_buffer(
+                wgpu::TexelCopyTextureInfo {
+                    aspect: wgpu::TextureAspect::All,
+                    texture: &self.texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                },
+                wgpu::TexelCopyBufferInfo {
+                    buffer: &self.buffer,
+                    layout: wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(self.width * std::mem::size_of::<u32>() as u32),
+                        rows_per_image: Some(self.width),
+                    },
+                },
+                extent,
+            );
+        }*/
         Ok(())
     }
 }
@@ -313,7 +342,9 @@ pub async fn async_render<P: AsRef<Path>>(
     let p: &Path = path.as_ref();
     let mut app = App::new_sized(drawable, width, height).await;
     app.render_to_surface().await;
+    info!("things");
     if let Some(state) = app.state.as_ref() {
+        info!("state!");
         state.save(path).await?;
     }
 

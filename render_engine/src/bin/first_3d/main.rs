@@ -468,8 +468,8 @@ async fn async_main() -> std::result::Result<(), anyhow::Error> {
         let drawable = LocalState::new();
         simple_start::async_render(drawable, 1024, 768, "/tmp/first_3d.png").await?;
     }
-    let drawable = LocalState::new();
-    simple_start::async_main(drawable).await?;
+    // let drawable = LocalState::new();
+    // simple_start::async_main(drawable).await?;
 
     Ok(())
 }

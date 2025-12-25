@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use log::*;
 use std::sync::Arc;
 use winit::{event::*, event_loop::EventLoop, keyboard::PhysicalKey, window::Window};
@@ -16,7 +17,7 @@ enum InnerTarget {
 /// Something to render to... a window or an texture?
 pub struct Target {
     inner: InnerTarget,
-    device: wgpu::Device,
+    context: crate::Context,
     config: wgpu::SurfaceConfiguration,
 }
 
@@ -92,7 +93,7 @@ impl Target {
                     self.config.height = dims.height;
                     // self.camera.aspect = self.width as f32 / self.height as f32;
 
-                    surface.configure(&self.device, &self.config);
+                    surface.configure(&self.context.device, &self.config);
                     info!("configure happened");
                     true
                 } else {
@@ -104,7 +105,7 @@ impl Target {
     }
 
     pub fn new_surface(
-        device: wgpu::Device,
+        context: crate::Context,
         surface: wgpu::Surface<'static>,
         window: Arc<Window>,
         config: wgpu::SurfaceConfiguration,
@@ -112,12 +113,12 @@ impl Target {
         let mut z = Self {
             inner: InnerTarget::WindowSurface { surface, window },
             config,
-            device,
+            context,
         };
         z.reconfigure();
         z
     }
-    pub fn new_texture(device: wgpu::Device, config: wgpu::SurfaceConfiguration) -> Self {
+    pub fn new_texture(context: crate::Context, config: wgpu::SurfaceConfiguration) -> Self {
         let texture_desc = wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
                 width: config.width,
@@ -132,18 +133,65 @@ impl Target {
             label: None,
             view_formats: &[],
         };
-        let texture = device.create_texture(&texture_desc);
+        let texture = context.device.create_texture(&texture_desc);
         Self {
             inner: InnerTarget::Texture { texture },
             config,
-            device,
+            context,
         }
     }
-    /*
-    pub async fn save<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
-
+    pub async fn save<P: AsRef<Path>>(&self, path: P) -> Result<(), crate::Error> {
         let p: &Path = path.as_ref();
-        let buffer_slice = self.buffer.slice(..);
+
+        let width = self.config.width;
+        let height = self.config.height;
+
+        // Create a temporary output buffer
+        let u32_size = std::mem::size_of::<u32>() as u32;
+        let output_buffer_size = (u32_size * width * height) as wgpu::BufferAddress;
+        let output_buffer_desc = wgpu::BufferDescriptor {
+            size: output_buffer_size,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            label: Some("capture_buffer"),
+            mapped_at_creation: false,
+        };
+        let buffer = self.context.device.create_buffer(&output_buffer_desc);
+        let buffer_slice = buffer.slice(..);
+
+        let texture = match &self.inner {
+            InnerTarget::WindowSurface { surface, window } => todo!(),
+            InnerTarget::Texture { texture } => texture,
+        };
+
+        // Create commands to copy the current target into the buffer.
+        let mut encoder = self
+            .context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+        let extent = wgpu::Extent3d {
+            // 2.
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        };
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(width * std::mem::size_of::<u32>() as u32),
+                    rows_per_image: Some(width),
+                },
+            },
+            extent,
+        );
+        self.context.queue.submit(Some(encoder.finish()));
 
         // NOTE: We have to create the mapping THEN device.poll() before await
         // the future. Otherwise the application will freeze.
@@ -151,7 +199,8 @@ impl Target {
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
             tx.send(result).unwrap();
         });
-        self.device
+        self.context
+            .device
             .poll(wgpu::PollType::wait_indefinitely())
             .unwrap();
         rx.receive().await.unwrap().unwrap();
@@ -159,9 +208,11 @@ impl Target {
         let data = buffer_slice.get_mapped_range();
 
         use image::{ImageBuffer, Rgba};
-        let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(self.width, self.height, data).unwrap();
+        let buffer = ImageBuffer::<Rgba<u8>, _>::from_raw(width, height, data).unwrap();
         buffer
             .save(p)
-            .with_context(|| format!("failed to save to {p:?}"))
-    }*/
+            .with_context(|| format!("failed to save to {p:?}"))?;
+
+        Ok(())
+    }
 }

@@ -63,7 +63,7 @@ impl Context {
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
-        Target::new_texture(self.device.clone(), config)
+        Target::new_texture(self.clone(), config)
     }
 
     pub async fn new_window(window: Arc<Window>) -> Result<ContextReturn, crate::Error> {
@@ -118,13 +118,13 @@ impl Context {
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
-
+        let context = Context {
+            device: device.clone(),
+            queue,
+        };
         Ok(ContextReturn {
-            context: Context {
-                device: device.clone(),
-                queue,
-            },
-            target: Target::new_surface(device, surface, window, config),
+            context: context.clone(),
+            target: Target::new_surface(context.clone(), surface, window, config),
         })
     }
 }
