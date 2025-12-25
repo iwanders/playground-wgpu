@@ -11,8 +11,8 @@ use vulkano::command_buffer::allocator::{
     StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo,
 };
 use vulkano::command_buffer::{
-    AutoCommandBufferBuilder, CopyImageToBufferInfo, RenderPassBeginInfo, SubpassBeginInfo,
-    SubpassContents, SubpassEndInfo,
+    AutoCommandBufferBuilder, CopyImageToBufferInfo, RenderPassBeginInfo, RenderingAttachmentInfo,
+    RenderingInfo, SubpassBeginInfo, SubpassContents, SubpassEndInfo,
 };
 use vulkano::command_buffer::{ClearColorImageInfo, CommandBufferUsage};
 use vulkano::format::Format;
@@ -25,13 +25,17 @@ use vulkano::pipeline::graphics::depth_stencil::{DepthState, DepthStencilState};
 use vulkano::pipeline::graphics::input_assembly::InputAssemblyState;
 use vulkano::pipeline::graphics::multisample::MultisampleState;
 use vulkano::pipeline::graphics::rasterization::{CullMode, FrontFace, RasterizationState};
+use vulkano::pipeline::graphics::subpass::PipelineRenderingCreateInfo;
 use vulkano::pipeline::graphics::vertex_input::{Vertex, VertexDefinition};
 use vulkano::pipeline::graphics::viewport::{Viewport, ViewportState};
 use vulkano::pipeline::layout::PipelineDescriptorSetLayoutCreateInfo;
 use vulkano::pipeline::{
-    GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout, PipelineShaderStageCreateInfo,
+    DynamicState, GraphicsPipeline, Pipeline, PipelineBindPoint, PipelineLayout,
+    PipelineShaderStageCreateInfo,
 };
-use vulkano::render_pass::{Framebuffer, FramebufferCreateInfo, Subpass};
+use vulkano::render_pass::{
+    AttachmentLoadOp, AttachmentStoreOp, Framebuffer, FramebufferCreateInfo, Subpass,
+};
 use vulkano::sync::{self, GpuFuture};
 use zerocopy::IntoBytes;
 use zerocopy_derive::Immutable;
@@ -220,6 +224,7 @@ impl LocalState {
         )
         .unwrap();
 
+        /*
         let render_pass = vulkano::single_pass_renderpass!(
             self.device.clone(),
             attachments: {
@@ -241,7 +246,7 @@ impl LocalState {
                 depth_stencil: {depth_stencil},
             },
         )
-        .unwrap();
+        .unwrap();*/
 
         let command_buffer_allocator = Arc::new(StandardCommandBufferAllocator::new(
             self.device.clone(),
@@ -292,7 +297,16 @@ impl LocalState {
             )
             .unwrap();
 
-            let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
+            // let subpass = Subpass::from(render_pass.clone(), 0).unwrap();
+            let subpass = PipelineRenderingCreateInfo {
+                // We specify a single color attachment that will be rendered to. When we begin
+                // rendering, we will specify a swapchain image to be used as this attachment, so
+                // here we set its format to be the same format as the swapchain.
+                color_attachment_formats: vec![Some(Format::R8G8B8A8_UNORM)],
+                depth_attachment_format: Some(Format::D32_SFLOAT),
+
+                ..Default::default()
+            };
 
             GraphicsPipeline::new(
                 self.device.clone(),
@@ -306,19 +320,15 @@ impl LocalState {
                     input_assembly_state: Some(InputAssemblyState::default()),
                     // Set the fixed viewport.
                     viewport_state: Some(ViewportState {
-                        viewports: [viewport].into_iter().collect(),
+                        viewports: [viewport.clone()].into_iter().collect(),
                         ..Default::default()
                     }),
                     // Ignore these for now.
                     multisample_state: Some(MultisampleState::default()),
                     color_blend_state: Some(ColorBlendState::with_attachment_states(
-                        subpass.num_color_attachments(),
+                        subpass.color_attachment_formats.len() as u32,
                         ColorBlendAttachmentState::default(),
                     )),
-                    // depth_stencil_state: Some(DepthStencilState {
-                    //     depth: Some(DepthState::simple()),
-                    //     ..Default::default()
-                    // }),
                     depth_stencil_state: Some(DepthStencilState {
                         depth: Some(DepthState {
                             write_enable: true,
@@ -332,6 +342,7 @@ impl LocalState {
                         front_face: FrontFace::CounterClockwise,
                         ..Default::default()
                     }),
+                    dynamic_state: [DynamicState::Viewport].iter().copied().collect(),
                     // This graphics pipeline object concerns the first pass of the render pass.
                     subpass: Some(subpass.into()),
 
@@ -350,6 +361,7 @@ impl LocalState {
         let render_output_image_view = ImageView::new_default(self.image.clone()).unwrap();
         let depth_image_view = ImageView::new_default(self.depth_image.clone()).unwrap();
 
+        /*
         let framebuffer = Framebuffer::new(
             render_pass,
             FramebufferCreateInfo {
@@ -358,7 +370,7 @@ impl LocalState {
                 ..Default::default()
             },
         )
-        .unwrap();
+        .unwrap();*/
 
         #[repr(C)]
         #[derive(Copy, Clone, Debug, IntoBytes, Immutable, BufferContents)]
@@ -372,27 +384,32 @@ impl LocalState {
         let push_constants = push_val;
         unsafe {
             builder
-                .begin_render_pass(
-                    RenderPassBeginInfo {
-                        clear_values: vec![
-                            Some([0.0, 0.0, 1.0, 0.1].into()),
-                            Some(ClearValue::Depth(1.000)),
-                        ],
-                        ..RenderPassBeginInfo::framebuffer(framebuffer.clone())
-                    },
-                    SubpassBeginInfo {
-                        contents: SubpassContents::Inline,
-                        ..Default::default()
-                    },
-                )?
-                // new stuff
+                .begin_rendering(RenderingInfo {
+                    color_attachments: vec![Some(RenderingAttachmentInfo {
+                        load_op: AttachmentLoadOp::Clear,
+                        store_op: AttachmentStoreOp::Store,
+                        clear_value: Some([0.0, 0.0, 1.0, 0.1].into()),
+                        ..RenderingAttachmentInfo::image_view(render_output_image_view.clone())
+                    })],
+                    depth_attachment: Some(RenderingAttachmentInfo {
+                        load_op: AttachmentLoadOp::Clear,
+                        store_op: AttachmentStoreOp::Store,
+                        clear_value: Some(ClearValue::Depth(1.0)),
+                        ..RenderingAttachmentInfo::image_view(depth_image_view.clone())
+                    }),
+                    ..Default::default()
+                })?
+                .set_viewport(0, [viewport.clone()].into_iter().collect())?
                 .bind_pipeline_graphics(pipeline.clone())?
                 .bind_vertex_buffers(0, vertex_buffer.clone())?
                 .bind_index_buffer(index_buffer.clone())?
                 .push_constants(pipeline.layout().clone(), 0, push_constants)?
-                .draw_indexed(indices.len() as u32, 1, 0, 0, 0)?
-                // .draw(vertices.len() as u32, 1, 0, 0)?
-                .end_render_pass(SubpassEndInfo::default())?;
+                .draw_indexed(indices.len() as u32, 1, 0, 0, 0)?;
+            // .draw(vertices.len() as u32, 1, 0, 0)?
+            builder
+                // We leave the render pass.
+                .end_rendering()?;
+            // .end_render_pass(SubpassEndInfo::default())?;
         }
 
         let command_buffer = builder.build().unwrap();

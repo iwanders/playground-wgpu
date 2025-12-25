@@ -8,7 +8,9 @@ use vulkano::command_buffer::CommandBufferUsage;
 use vulkano::command_buffer::allocator::{
     StandardCommandBufferAllocator, StandardCommandBufferAllocatorCreateInfo,
 };
-use vulkano::device::{Device, DeviceCreateInfo, QueueCreateInfo};
+use vulkano::device::{
+    Device, DeviceCreateInfo, DeviceExtensions, DeviceFeatures, QueueCreateInfo,
+};
 use vulkano::device::{Queue, QueueFlags};
 use vulkano::format::Format;
 use vulkano::image::{Image, ImageCreateInfo, ImageType, ImageUsage};
@@ -47,10 +49,16 @@ impl State {
         // The instance is a handle to our GPU
 
         let library = VulkanLibrary::new().expect("no local Vulkan library/DLL");
+        let required_extensions = vulkano::instance::InstanceExtensions {
+            khr_surface: true,
+            ext_debug_utils: true,
+            ..Default::default()
+        };
         let instance = Instance::new(
             library,
             InstanceCreateInfo {
                 flags: InstanceCreateFlags::ENUMERATE_PORTABILITY,
+                enabled_extensions: required_extensions,
                 ..Default::default()
             },
         )
@@ -78,6 +86,12 @@ impl State {
             .expect("couldn't find a graphical queue family")
             as u32;
 
+        let mut device_extensions = DeviceExtensions {
+            khr_swapchain: true,
+
+            ..DeviceExtensions::empty()
+        };
+        device_extensions.khr_dynamic_rendering = true;
         let (device, mut queues) = Device::new(
             physical_device,
             DeviceCreateInfo {
@@ -86,6 +100,11 @@ impl State {
                     queue_family_index,
                     ..Default::default()
                 }],
+                enabled_extensions: device_extensions,
+                enabled_features: DeviceFeatures {
+                    dynamic_rendering: true,
+                    ..DeviceFeatures::empty()
+                },
                 ..Default::default()
             },
         )
