@@ -261,6 +261,11 @@ impl simple_start::Drawable for LocalState {
             },
         ];
 
+        let destination = state.target.destination()?;
+        let width = destination.width();
+        let height = destination.height();
+        state.camera.aspect = width as f32 / height as f32;
+
         let light_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Light buffer"),
             contents: lights.as_bytes(),
@@ -271,8 +276,8 @@ impl simple_start::Drawable for LocalState {
 
         let depth_size = wgpu::Extent3d {
             // 2.
-            width: state.width.max(1),
-            height: state.height.max(1),
+            width: width.max(1),
+            height: height.max(1),
             depth_or_array_layers: 1,
         };
         let depth_desc = wgpu::TextureDescriptor {
@@ -293,7 +298,6 @@ impl simple_start::Drawable for LocalState {
         let num_indices = persistent.index_length;
 
         // let texture_format = state.target.get_texture_format()?;
-        let destination = state.target.destination()?;
         let texture_format = destination.get_texture_format();
 
         let camera_bind_group_layout =

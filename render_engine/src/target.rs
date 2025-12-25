@@ -34,6 +34,12 @@ impl TargetDestination {
     pub fn get_texture_format(&self) -> wgpu::TextureFormat {
         self.get_view().texture().format()
     }
+    pub fn width(&self) -> u32 {
+        self.viewthing.texture().width()
+    }
+    pub fn height(&self) -> u32 {
+        self.viewthing.texture().height()
+    }
 }
 
 impl Target {
