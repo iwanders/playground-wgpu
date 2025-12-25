@@ -1,11 +1,10 @@
-// I started with [this](https://sotrh.github.io/learn-wgpu/beginner/tutorial1-window/), but that started setting up
-// application state while we should be able to just render to an image??
-//
-// Oh, that is in https://sotrh.github.io/learn-wgpu/showcase/windowless/ so yeah I was on the right track
-// with just the adapter, device and queue.
-//
-// Lets just start with tutorial 2, and pick from tutorial 1 as we see fit.
+/*
 
+   Bind group 0; global stuff, like lights & camera
+   Bind group 1; material stuff
+   Bind group 2; object stuff.
+
+*/
 use anyhow::Context as WithContext;
 use glam::{Mat4, Vec3, vec3};
 use log::*;
@@ -16,6 +15,8 @@ use winit::{event::*, event_loop::EventLoop, keyboard::PhysicalKey, window::Wind
 use zerocopy::{Immutable, IntoBytes};
 
 pub mod context;
+pub mod lights;
+
 pub mod target;
 pub mod view;
 
@@ -47,8 +48,6 @@ pub struct State {
     // pub buffer: wgpu::Buffer,
     // pub texture: wgpu::Texture,
     // pub texture_view: wgpu::TextureView,
-    pub width: u32,
-    pub height: u32,
     pub window: Option<Arc<Window>>,
     pub camera: view::Camera,
     // pub config: wgpu::SurfaceConfiguration,
@@ -79,12 +78,6 @@ impl State {
         Ok(State {
             context,
             target,
-            // instance,
-            // buffer,
-            width,
-            height,
-            // texture,
-            // texture_view,
             window,
             // config,
             camera: view::Camera::new(width, height),
@@ -132,39 +125,6 @@ impl State {
             }
             _ => false,
         }
-    }
-
-    pub fn add_screenshot_to_encoder(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-    ) -> Result<(), anyhow::Error> {
-        /*
-        if self.surface.is_none() {
-            let extent = wgpu::Extent3d {
-                // 2.
-                width: self.width.max(1),
-                height: self.height.max(1),
-                depth_or_array_layers: 1,
-            };
-            encoder.copy_texture_to_buffer(
-                wgpu::TexelCopyTextureInfo {
-                    aspect: wgpu::TextureAspect::All,
-                    texture: &self.texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                },
-                wgpu::TexelCopyBufferInfo {
-                    buffer: &self.buffer,
-                    layout: wgpu::TexelCopyBufferLayout {
-                        offset: 0,
-                        bytes_per_row: Some(self.width * std::mem::size_of::<u32>() as u32),
-                        rows_per_image: Some(self.width),
-                    },
-                },
-                extent,
-            );
-        }*/
-        Ok(())
     }
 }
 

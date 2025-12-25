@@ -1,15 +1,11 @@
-use anyhow::Context;
 use glam::{Mat4, Vec3, Vec3A, vec3, vec3a};
 use log::*;
 use simple_start::State;
 use wgpu::util::DeviceExt;
 
 use gltf;
-// https://sotrh.github.io/learn-wgpu/beginner/tutorial4-buffer/
-// Skipping over textures and bindgroups
-// https://sotrh.github.io/learn-wgpu/beginner/tutorial6-uniforms/
 
-// https://eliemichel.github.io/LearnWebGPU/basic-3d-rendering/3d-meshes/a-simple-example.html
+// How do we ehm, pull this hot mess apart?
 
 #[repr(C)]
 // This is so we can store this in a buffer
@@ -21,14 +17,6 @@ pub struct OurUniform {
     pub model_tf: Mat4,
     pub camera_world_position: Vec3A,
 }
-
-// struct Light {
-//     color: vec3f,
-//     direction: vec3f,
-//     hardness: f32,
-//     kd: f32,
-//     ks: f32,
-// };
 
 #[repr(C, packed)]
 // This is so we can store this in a buffer
@@ -237,6 +225,17 @@ impl simple_start::Drawable for LocalState {
         let kd = 0.5;
         let ks = 0.9;
         let sun_light = 0.01;
+
+        let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
+            simple_start::lights::Light::omni()
+                .with_position([0.3, 0.3, 0.3])
+                .with_direction([1.0, 1.0, 1.0])
+                .with_intensity(5.5)
+                .with_color([0.3, 0.3, 0.3]),
+        ]);
+
+        let gpu_lights = lights.to_gpu();
+
         let lights = vec![
             Light {
                 color: vec3a(1.0, 0.5, 0.5),
@@ -323,28 +322,30 @@ impl simple_start::Drawable for LocalState {
             label: Some("camera_bind_group"),
         });
 
-        let light_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("light_bind_group_layout"),
-            });
-        let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &light_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 1,
-                resource: light_buffer.as_entire_binding(),
-            }],
-            label: Some("light_bind_group"),
-        });
+        let light_bind_group_layout = gpu_lights.light_bind_group_layout;
+        /*
+        let light_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+             entries: &[wgpu::BindGroupLayoutEntry {
+                 binding: 1,
+                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                 ty: wgpu::BindingType::Buffer {
+                     ty: wgpu::BufferBindingType::Storage { read_only: true },
+                     has_dynamic_offset: false,
+                     min_binding_size: None,
+                 },
+                 count: None,
+             }],
+             label: Some("light_bind_group_layout"),
+         });*/
+        let light_bind_group = gpu_lights.light_bind_group;
+        // let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        //     layout: &light_bind_group_layout,
+        //     entries: &[wgpu::BindGroupEntry {
+        //         binding: 1,
+        //         resource: light_buffer.as_entire_binding(),
+        //     }],
+        //     label: Some("light_bind_group"),
+        // });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -468,8 +469,8 @@ async fn async_main() -> std::result::Result<(), anyhow::Error> {
         let drawable = LocalState::new();
         simple_start::async_render(drawable, 1024, 768, "/tmp/first_3d.png").await?;
     }
-    // let drawable = LocalState::new();
-    // simple_start::async_main(drawable).await?;
+    let drawable = LocalState::new();
+    simple_start::async_main(drawable).await?;
 
     Ok(())
 }

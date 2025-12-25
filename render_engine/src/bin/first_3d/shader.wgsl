@@ -8,11 +8,19 @@ struct CameraUniform {
 var<uniform> our_uniform: CameraUniform;
 
 
+// pub position: Vec3A,
+// pub direction: Vec3A,
+// pub color: Vec3A, // do lights have alpha?
+// pub intensity: f32,
+// pub light_type: LightType,
 
 struct Light {
-    color: vec3f,
-    direction: vec3f,
-    hardness_kd_ks: vec3f,
+position: vec3f,
+direction: vec3f,
+color: vec3f,
+intensity: f32,
+light_type: u32,
+    // hardness_kd_ks: vec3f,
 };
 struct LightUniform {
     lights: array<Light>, // arrayLength(&lights.point);
@@ -78,9 +86,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 	for (var i: u32 = 0; i < light_count; i++) {
 		let lightColor = light_uniform.lights[i].color;
 		let L = normalize(light_uniform.lights[i].direction);
-		let hardness = light_uniform.lights[i].hardness_kd_ks.x;
-		let kd = light_uniform.lights[i].hardness_kd_ks.y; // diffuse effect
-		let ks = light_uniform.lights[i].hardness_kd_ks.z; // specular effect
+		let hardness = light_uniform.lights[i].intensity ;
+		let kd = 0.5;
+		let ks = 0.9;
+		// let kd = light_uniform.lights[i].hardness_kd_ks.y; // diffuse effect
+		// let ks = light_uniform.lights[i].hardness_kd_ks.z; // specular effect
 		let R = reflect(-L, N); // equivalent to 2.0 * dot(N, L) * N - L
 
 		let diffuse = max(0.0, dot(L, N)) * lightColor;
