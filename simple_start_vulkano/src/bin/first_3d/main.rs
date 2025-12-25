@@ -428,9 +428,9 @@ fn run_main() -> std::result::Result<(), anyhow::Error> {
     // state.draw()?;
     // state.save("/tmp/triangle_2d.png")?;
 
-    let mut state = LocalState(State::new(256, 256)?);
+    let state = LocalState(State::new(256, 256)?);
     state.draw()?;
-    state.save("/tmp/triangle_2d.png")?;
+    state.save("/tmp/first_3d.png")?;
     Ok(())
 }
 
