@@ -13,6 +13,17 @@ pub struct ContextReturn {
     pub target: Target,
     pub context: Context,
 }
+
+fn get_necessary_features() -> wgpu::Features {
+    // Hmmm... indexing with the vertex into a texture sounds... relevant :D
+    // https://docs.rs/wgpu-types/27.0.1/wgpu_types/struct.Features.html#associatedconstant.STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING
+    // And they do support push constants.
+    // https://docs.rs/wgpu-types/27.0.1/wgpu_types/struct.Features.html#associatedconstant.PUSH_CONSTANTS
+
+    wgpu::Features::EXPERIMENTAL_PASSTHROUGH_SHADERS // We use this such that we can use slang and spirv shaders.
+    // | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY,
+}
+
 impl Context {
     pub async fn new_sized(width: u32, height: u32) -> Result<ContextReturn, crate::Error> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -31,8 +42,7 @@ impl Context {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::EXPERIMENTAL_PASSTHROUGH_SHADERS
-                    | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY,
+                required_features: get_necessary_features(),
                 experimental_features: unsafe { wgpu::ExperimentalFeatures::enabled() },
 
                 // WebGL doesn't support all of wgpu's features, so if
@@ -86,8 +96,7 @@ impl Context {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::EXPERIMENTAL_PASSTHROUGH_SHADERS
-                    | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY,
+                required_features: get_necessary_features(),
                 experimental_features: unsafe { wgpu::ExperimentalFeatures::enabled() },
                 // we're building for the web we'll have to disable some.
                 required_limits: wgpu::Limits::default(),

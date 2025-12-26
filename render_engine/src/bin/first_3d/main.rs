@@ -8,6 +8,11 @@ use gltf;
 // How do we ehm, pull this hot mess apart?
 // Lights were easy
 // Is each material just a different pipeline?
+//  A material may require multiple passess, consider glowing surfaces?
+//  Lets just start simple.
+//  How do we handle vertices with optionals? Like UV map, and how do we handle optional textures?
+//  VertexAttribute is 'fixed'... Can we just expose an index in there and then trampoline into some buffer that
+//  is optional (or zero length?)
 //
 // Only instanced meshes, if you have a single mesh the instance count is just zero.
 //
@@ -247,6 +252,8 @@ impl simple_start::Drawable for LocalState {
 
         let l1_theta = simple_start::get_angle_f32(1.2);
         let l2_theta = -simple_start::get_angle_f32(0.7) + 3.14;
+        let l1_theta: f32 = 0.3;
+        let l2_theta: f32 = 2.3;
         let radius = 0.2;
 
         let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
