@@ -1,3 +1,12 @@
+/*
+
+https://shader-slang.org/slang/user-guide/spirv-target-specific#spir-v-specific-attributes
+[[vk::binding(binding: int, set: int = 0)]]
+Similar to binding layout qualifier in Vulkan. It specifies the uniform buffer binding point, and the descriptor set for Vulkan.
+
+==>> BINDING INDEX FIRST, THEN SET
+*/
+
 // No true enums;  https://github.com/gpuweb/gpuweb/issues/4856
 enum LightType
 {
@@ -16,7 +25,7 @@ struct CameraUniform {
 };
 // @group(0) @binding(0)
 // var<uniform> our_uniform: CameraUniform;
-[[vk::binding(0,0)]]
+[[vk::binding(0, 0)]]
 StructuredBuffer<CameraUniform> our_uniform;
 
 
@@ -75,7 +84,7 @@ struct LightUniform {
 };
 // @group(1) @binding(1)
 // var<storage, read> light_uniform: LightUniform;
-[[vk::binding(0,1)]]
+[[vk::binding(0, 1)]]
 StructuredBuffer<Light> light_uniform;
 
 

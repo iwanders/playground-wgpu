@@ -185,7 +185,7 @@ impl simple_start::Drawable for LocalState {
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
         let (document, buffers, images) = gltf::import(gltf_path)?;
-        info!("document: {document:#?}");
+        // info!("document: {document:#?}");
         let (mut vertices, indices) = load_gltf(document, &buffers, 0);
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
