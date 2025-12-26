@@ -66,16 +66,17 @@ StructuredBuffer<Light> light_uniform;
 
 struct VertexInput {
     float3 position;
-    // uint vertex_index;
     uint vertexID : SV_VulkanVertexID;
-    // uint vertexID : SV_VertexID;
-    // float3 normal;
-    // float3 color;
 };
 // [[vk::binding(1, 2)]]
 // StructuredBuffer<uint> vertex_indices;
-[[vk::binding(0, 2)]]
-StructuredBuffer<float3> vertex_normals;
+static const int MESH_BINDING_NORMAL = 0;
+static const int MESH_BINDING_COLOR = 1;
+
+[[vk::binding(MESH_BINDING_NORMAL, 2)]]
+StructuredBuffer<float3> vertex_normal;
+[[vk::binding(MESH_BINDING_COLOR, 2)]]
+StructuredBuffer<float4> vertex_color;
 
 struct VertexOutput {
     //@builtin(position) clip_position: vec4<f32>,
@@ -96,10 +97,13 @@ VertexOutput vertexMain(VertexInput in)
     let world_position = mul(our_uniform.model_matrix , float4(in.position, 1.0));
    // out.color = model.color;
     out.color = float3(1.0, 1.0, 1.0);
+    if (vertex_color.getCount() > 0) {
+        out.color = vertex_color[in.vertexID].xyz;
+    }
     //out.clip_position = vec4<f32>(model.position.x, model.position.y, model.position.z, 1.0); // A: Yes this is equivalent.
     var   normal = float3(1.0, 0.0, 0.0);
-    if (vertex_normals.getCount() > 0) {
-        normal = vertex_normals[ in.vertexID] ;
+    if (vertex_normal.getCount() > 0) {
+        normal = vertex_normal[ in.vertexID] ;
         // normal = vertex_normals[0];
     }
     // normal = vertex_normals[in.vertex_index];
@@ -122,7 +126,7 @@ Fragment fragmentMain( VertexOutput in) : SV_Target
    	let V = normalize(in.viewDirection);
 
    	// Sample texture
-   	let baseColor = float3(1.0, 1.0, 1.0);
+   	let baseColor = in.color;
 
    	let light_count = light_uniform.getCount();
    	var color = float3(0.0);
@@ -133,7 +137,8 @@ Fragment fragmentMain( VertexOutput in) : SV_Target
   		    continue;
   		}
 
-  		let lightColor = this_light.color;
+  		// let light_color = this_light.color;
+  		let light_color = float3(1.0, 1.0, 1.0);
   		let L = this_light.light_direction(in.world_pos);
   		let hardness = this_light.intensity ;
   		let kd = 0.5;
@@ -142,7 +147,7 @@ Fragment fragmentMain( VertexOutput in) : SV_Target
   		// let ks = light_uniform.lights[i].hardness_kd_ks.z; // specular effect
   		let R = reflect(-L, N); // equivalent to 2.0 * dot(N, L) * N - L
 
-  		let diffuse = max(0.0, dot(L, N)) * lightColor;
+  		let diffuse = max(0.0, dot(L, N)) * light_color;
 
   		// We clamp the dot product to 0 when it is negative
   		let RoV = max(0.0, dot(R, V));

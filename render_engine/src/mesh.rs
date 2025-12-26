@@ -77,11 +77,6 @@ impl CpuMesh {
         let index_length = self.index.len() as u32;
 
         let normal_data = self.normal.as_ref().map(|z| z.as_bytes()).unwrap_or(&[]);
-        println!(
-            "normals: {:?}    {:?}",
-            self.normal.as_ref().map(|a| &a[0..10]),
-            &normal_data[0..20]
-        );
         let normal_buffer = context
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -90,6 +85,14 @@ impl CpuMesh {
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
+        let color_data = self.color.as_ref().map(|z| z.as_bytes()).unwrap_or(&[]);
+        let color_buffer = context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("{}_color", name_prefix)),
+                contents: color_data,
+                usage: wgpu::BufferUsages::STORAGE,
+            });
         let bind_group = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -99,10 +102,10 @@ impl CpuMesh {
                         binding: GpuMesh::MESH_BINDING_NORMAL,
                         resource: normal_buffer.as_entire_binding(),
                     },
-                    // wgpu::BindGroupEntry {
-                    //     binding: GpuMesh::MESH_BINDING_INDEX,
-                    //     resource: index_buffer.as_entire_binding(),
-                    // },
+                    wgpu::BindGroupEntry {
+                        binding: GpuMesh::MESH_BINDING_COLOR,
+                        resource: color_buffer.as_entire_binding(),
+                    },
                 ],
                 label: Some(&format!("{}_bind_group", name_prefix)),
             });
@@ -112,6 +115,7 @@ impl CpuMesh {
             index_buffer,
             index_length,
             normal_buffer,
+            color_buffer,
             bind_group,
         }
     }
@@ -119,17 +123,23 @@ impl CpuMesh {
 
 #[derive(Clone, Debug)]
 pub struct GpuMesh {
-    pub vertex_buffer: wgpu::Buffer,
-    pub index_buffer: wgpu::Buffer,
-    pub index_length: u32,
-    pub normal_buffer: wgpu::Buffer,
-
     pub bind_group: wgpu::BindGroup,
+
+    /// Buffer holding the position data.
+    pub vertex_buffer: wgpu::Buffer,
+    /// Buffer holding the indices for the vertex data.
+    pub index_buffer: wgpu::Buffer,
+    /// TOtal number of indices.
+    pub index_length: u32,
+
+    //--- Optionals below, if they are unused, they are zero length, but still bound.
+    pub normal_buffer: wgpu::Buffer,
+    pub color_buffer: wgpu::Buffer,
 }
 
 impl GpuMesh {
     pub const MESH_BINDING_NORMAL: u32 = 0;
-    // pub const MESH_BINDING_INDEX: u32 = 1;
+    pub const MESH_BINDING_COLOR: u32 = 1;
     pub const MESH_LAYOUT: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
             label: Some("mesh_layout"),
@@ -145,17 +155,17 @@ impl GpuMesh {
                     },
                     count: None,
                 },
-                // // Indices
-                // wgpu::BindGroupLayoutEntry {
-                //     binding: Self::MESH_BINDING_INDEX,
-                //     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                //     ty: wgpu::BindingType::Buffer {
-                //         ty: wgpu::BufferBindingType::Storage { read_only: true },
-                //         has_dynamic_offset: false,
-                //         min_binding_size: None,
-                //     },
-                //     count: None,
-                // },
+                // Color data
+                wgpu::BindGroupLayoutEntry {
+                    binding: Self::MESH_BINDING_COLOR,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         };
 

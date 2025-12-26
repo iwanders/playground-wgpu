@@ -19,6 +19,8 @@ use gltf;
 //
 //
 
+use zerocopy::{Immutable, IntoBytes};
+
 #[repr(C)]
 // This is so we can store this in a buffer
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
@@ -30,108 +32,9 @@ pub struct OurUniform {
     pub camera_world_position: Vec3A,
 }
 
-use zerocopy::{Immutable, IntoBytes};
-#[repr(C)]
-#[derive(Copy, Clone, Debug, IntoBytes, Immutable, Default)]
-struct Vertex {
-    position: Vec3,
-    normal: Vec3,
-    color: Vec3,
-}
-impl Vertex {
-    pub const fn pnc(position: Vec3, normal: Vec3, color: Vec3) -> Self {
-        Self {
-            position,
-            normal,
-            color,
-        }
-    }
-}
-
-// Attrib has to be in sync with Vertex.
-impl Vertex {
-    const ATTRIBS: [wgpu::VertexAttribute; 3] =
-        wgpu::vertex_attr_array![0 => Float32x3,  1 => Float32x3,  2 => Float32x3];
-
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        use std::mem;
-
-        wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<Self>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &Self::ATTRIBS,
-        }
-    }
-}
-
-fn load_gltf(
-    document: gltf::Document,
-    buffers: &[gltf::buffer::Data],
-    desired_index: usize,
-) -> (Vec<Vertex>, Vec<u32>) {
-    let mut vertex_buffer = Vec::<Vertex>::new();
-    let mut index_buffer: Vec<u32> = Vec::new();
-    let mut found_indices = false;
-    for scene in document.scenes() {
-        for (node_index, node) in scene.nodes().enumerate() {
-            if node_index != desired_index {
-                continue;
-            }
-            if let Some(mesh) = node.mesh() {
-                for (mesh_index, primitive) in mesh.primitives().enumerate() {
-                    let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-                    info!("new primitive");
-
-                    // Access vertex positions
-                    if let Some(positions) = reader.read_positions() {
-                        for p in positions {
-                            vertex_buffer.push(Vertex::default());
-                            let vertex = vertex_buffer.last_mut().unwrap();
-                            // Do something with the position [p[0], p[1], p[2]]
-                            // println!("Position: {:?}", p);
-                            vertex.position = vec3(p[0], p[1], p[2]);
-                            vertex.color = vec3(p[0], p[1], p[2]);
-                        }
-                    }
-
-                    // Access normals
-                    if let Some(normals) = reader.read_normals() {
-                        for (ni, n) in normals.enumerate() {
-                            // Do something with the normal [n[0], n[1], n[2]]
-                            vertex_buffer[ni].normal = vec3(n[0], n[1], n[2]);
-                        }
-                    }
-                    // Access indices
-                    if let Some(indices) = reader.read_indices() {
-                        match indices {
-                            ::gltf::mesh::util::ReadIndices::U8(iter) => {
-                                index_buffer.extend(iter.map(|v| v as u32));
-                            }
-                            ::gltf::mesh::util::ReadIndices::U16(iter) => {
-                                index_buffer.extend(iter.map(|v| v as u32));
-                            }
-                            ::gltf::mesh::util::ReadIndices::U32(iter) => {
-                                index_buffer.extend(iter);
-                            }
-                        }
-                    }
-                    // Access texture coordinates (TexCoords)
-                    if let Some(tex_coords) = reader.read_tex_coords(0) {
-                        for tc in tex_coords.into_f32() {
-                            // Do something with the texture coord [tc[0], tc[1]]
-                        }
-                    }
-                }
-            }
-        }
-    }
-    (vertex_buffer, index_buffer)
-}
-
 struct PersistentState {
     shader: wgpu::ShaderModule,
     gpu_mesh: simple_start::mesh::GpuMesh,
-    cpu_mesh: simple_start::mesh::CpuMesh,
     mesh_group_layout: wgpu::BindGroupLayout,
     model_tf: Mat4,
 }
@@ -179,7 +82,8 @@ impl simple_start::Drawable for LocalState {
         };
 
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
-        let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
+        // let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
+        let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
         let (document, buffers, images) = gltf::import(gltf_path)?;
         // info!("document: {document:#?}");
         let cpu_mesh = simple_start::loader::load_gltf(document, &buffers, 0);
@@ -196,7 +100,6 @@ impl simple_start::Drawable for LocalState {
         self.persistent = Some(PersistentState {
             shader,
             gpu_mesh,
-            cpu_mesh,
             mesh_group_layout,
             model_tf,
         });
