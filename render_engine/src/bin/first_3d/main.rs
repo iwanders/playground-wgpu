@@ -30,15 +30,6 @@ pub struct OurUniform {
     pub camera_world_position: Vec3A,
 }
 
-#[repr(C, packed)]
-// This is so we can store this in a buffer
-#[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
-pub struct Light {
-    pub color: Vec3A,
-    pub direction: Vec3A,
-    pub hardness_kd_ks: Vec3A,
-}
-
 use zerocopy::{Immutable, IntoBytes};
 #[repr(C)]
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable, Default)]
@@ -139,9 +130,9 @@ fn load_gltf(
 
 struct PersistentState {
     shader: wgpu::ShaderModule,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    index_length: u32,
+    gpu_mesh: simple_start::mesh::GpuMesh,
+    cpu_mesh: simple_start::mesh::CpuMesh,
+    mesh_group_layout: wgpu::BindGroupLayout,
     model_tf: Mat4,
 }
 struct LocalState {
@@ -191,19 +182,11 @@ impl simple_start::Drawable for LocalState {
         let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
         let (document, buffers, images) = gltf::import(gltf_path)?;
         // info!("document: {document:#?}");
-        let (mut vertices, indices) = load_gltf(document, &buffers, 0);
+        let cpu_mesh = simple_start::loader::load_gltf(document, &buffers, 0);
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: vertices.as_bytes(),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index_length = indices.len() as u32;
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: indices.as_bytes(),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        let mesh_group_layout =
+            device.create_bind_group_layout(&simple_start::mesh::GpuMesh::MESH_LAYOUT);
+        let gpu_mesh = cpu_mesh.to_gpu(&state.context, &mesh_group_layout);
 
         let model_tf = Mat4::IDENTITY
             * Mat4::from_rotation_x(std::f32::consts::PI)
@@ -212,9 +195,9 @@ impl simple_start::Drawable for LocalState {
 
         self.persistent = Some(PersistentState {
             shader,
-            vertex_buffer,
-            index_buffer,
-            index_length,
+            gpu_mesh,
+            cpu_mesh,
+            mesh_group_layout,
             model_tf,
         });
 
@@ -232,8 +215,8 @@ impl simple_start::Drawable for LocalState {
         // Something something... fragment shader... set colors? >_<
         let persistent = self.persistent.as_ref().unwrap();
         let shader = &persistent.shader;
-        let vertex_buffer = &persistent.vertex_buffer;
-        let index_buffer = &persistent.index_buffer;
+        let vertex_buffer = &persistent.gpu_mesh.vertex_buffer;
+        let index_buffer = &persistent.gpu_mesh.index_buffer;
 
         let camera_world_position = state.camera.eye.into();
         let our_uniform = OurUniform {
@@ -305,7 +288,7 @@ impl simple_start::Drawable for LocalState {
 
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let num_indices = persistent.index_length;
+        let num_indices = persistent.gpu_mesh.index_length;
 
         // let texture_format = state.target.get_texture_format()?;
         let texture_format = destination.get_texture_format();
@@ -336,10 +319,16 @@ impl simple_start::Drawable for LocalState {
         let light_bind_group_layout = gpu_lights.light_bind_group_layout;
         let light_bind_group = gpu_lights.light_bind_group;
 
+        let mesh_group_layout = &persistent.mesh_group_layout;
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_bind_group_layout, &light_bind_group_layout],
+                bind_group_layouts: &[
+                    &camera_bind_group_layout,
+                    &light_bind_group_layout,
+                    mesh_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
 
@@ -354,7 +343,7 @@ impl simple_start::Drawable for LocalState {
                     None
                 },
                 // buffers: &[],
-                buffers: &[Vertex::desc()],
+                buffers: &[simple_start::mesh::GpuMesh::get_vertex_layout()],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -443,6 +432,8 @@ impl simple_start::Drawable for LocalState {
             render_pass.set_pipeline(&render_pipeline);
             render_pass.set_bind_group(0, &camera_bind_group, &[]);
             render_pass.set_bind_group(1, &light_bind_group, &[]);
+            render_pass.set_bind_group(2, &persistent.gpu_mesh.bind_group, &[]);
+
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..num_indices, 0, 0..1);

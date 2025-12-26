@@ -17,8 +17,12 @@ use zerocopy::{Immutable, IntoBytes};
 pub mod context;
 pub mod lights;
 
+pub mod mesh;
 pub mod target;
 pub mod view;
+
+pub mod loader;
+pub mod wgpu_util;
 
 use context::{Context, ContextReturn};
 use target::Target;

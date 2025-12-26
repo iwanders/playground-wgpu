@@ -5,10 +5,15 @@ https://shader-slang.org/slang/user-guide/spirv-target-specific#spir-v-specific-
 Similar to binding layout qualifier in Vulkan. It specifies the uniform buffer binding point, and the descriptor set for Vulkan.
 
 ==>> BINDING INDEX FIRST, THEN SET
+
+Set/Group: A collection of related bindings.
+
+
+https://github.com/shader-slang/slang/tree/master/examples/gpu-printing#gpu-printing
 */
 
-
 enum LightType
+
 {
     LIGHT_TYPE_OFF = 0,
     LIGHT_TYPE_DIRECTIONAL = 1,
@@ -58,9 +63,16 @@ StructuredBuffer<Light> light_uniform;
 
 struct VertexInput {
     float3 position;
-    float3 normal;
-    float3 color;
+    uint vertex_index;
+    // uint vertexID : SV_VulkanVertexID;
+    // uint vertexID : SV_VertexID;
+    // float3 normal;
+    // float3 color;
 };
+[[vk::binding(1, 2)]]
+StructuredBuffer<uint> vertex_indices;
+[[vk::binding(0, 2)]]
+StructuredBuffer<float3> vertex_normals;
 
 struct VertexOutput {
     //@builtin(position) clip_position: vec4<f32>,
@@ -82,8 +94,14 @@ VertexOutput vertexMain(VertexInput in)
    // out.color = model.color;
     out.color = float3(1.0, 1.0, 1.0);
     //out.clip_position = vec4<f32>(model.position.x, model.position.y, model.position.z, 1.0); // A: Yes this is equivalent.
+    var   normal = float3(1.0, 0.0, 0.0);
+    if (vertex_normals.getCount() > 0) {
+        normal = vertex_normals[ in.vertex_index] ;
+        // normal = vertex_normals[0];
+    }
+    // normal = vertex_normals[in.vertex_index];
     out.clip_position = mul(our_uniform.view_proj , mul(our_uniform.model_matrix , float4(in.position, 1.0))); // 2.
-    out.normal = mul(our_uniform.model_matrix, float4(in.normal, 0.0)).xyz;
+    out.normal = mul(our_uniform.model_matrix, float4(normal, 0.0)).xyz;
     out.viewDirection = our_uniform.camera_world_position - world_position.xyz;
     out.world_pos = mul(our_uniform.model_matrix , float4(in.position, 1.0)).xyz;
     return out;
