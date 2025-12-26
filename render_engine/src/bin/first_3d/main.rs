@@ -6,6 +6,13 @@ use wgpu::util::DeviceExt;
 use gltf;
 
 // How do we ehm, pull this hot mess apart?
+// Lights were easy
+// Is each material just a different pipeline?
+//
+// Only instanced meshes, if you have a single mesh the instance count is just zero.
+//
+//
+//
 
 #[repr(C)]
 // This is so we can store this in a buffer
@@ -220,24 +227,25 @@ impl simple_start::Drawable for LocalState {
 
         let l1_theta = simple_start::get_angle_f32(1.2);
         let l2_theta = -simple_start::get_angle_f32(0.7) + 3.14;
+        let radius = 0.2;
 
         let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
             simple_start::lights::Light::directional() // sun left
-                .with_direction([1.0, 1.0, 1.0])
-                .with_intensity(5.5)
-                .with_color([0.3, 0.3, 0.3]),
+                .with_direction([1.0, -1.0, 0.5])
+                .with_intensity(1.0)
+                .with_color([0.1, 0.1, 0.1]),
             simple_start::lights::Light::directional() // sun right
-                .with_direction([1.0, -1.0, 1.0])
-                .with_intensity(5.5)
-                .with_color([0.3, 0.3, 0.3]),
-            simple_start::lights::Light::directional() // Orbitter red
-                .with_direction([l1_theta.cos(), l1_theta.sin(), 0.1])
-                .with_intensity(5.5)
-                .with_color([1.0, 0.5, 0.5]),
-            simple_start::lights::Light::directional() // Orbitter green
-                .with_direction([l2_theta.cos(), l2_theta.sin(), 0.1])
-                .with_intensity(5.5)
-                .with_color([0.5, 0.5, 0.1]),
+                .with_direction([1.0, 1.0, 1.0])
+                .with_intensity(1.0)
+                .with_color([0.1, 0.1, 0.1]),
+            simple_start::lights::Light::omni() // Orbitter red
+                .with_position([l1_theta.cos() * radius, l1_theta.sin() * radius, 0.1])
+                .with_intensity(5.0)
+                .with_color([1.0, 0.3, 0.3]),
+            simple_start::lights::Light::omni() // Orbitter green
+                .with_position([l2_theta.cos() * radius, l2_theta.sin() * radius, 0.1])
+                .with_intensity(5.0)
+                .with_color([0.3, 0.3, 0.1]),
         ]);
 
         let gpu_lights = lights.to_gpu();
@@ -335,8 +343,8 @@ impl simple_start::Drawable for LocalState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                // cull_mode: Some(wgpu::Face::Back),
-                cull_mode: None,
+                cull_mode: Some(wgpu::Face::Back),
+                // cull_mode: None,
                 // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
                 polygon_mode: wgpu::PolygonMode::Fill,
                 // Requires Features::DEPTH_CLIP_CONTROL
@@ -396,13 +404,14 @@ impl simple_start::Drawable for LocalState {
                 timestamp_writes: None,
             };
             let mut render_pass = encoder.begin_render_pass(&render_pass_desc);
-
+            render_pass.push_debug_group("Things");
             render_pass.set_pipeline(&render_pipeline);
             render_pass.set_bind_group(0, &camera_bind_group, &[]);
             render_pass.set_bind_group(1, &light_bind_group, &[]);
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..num_indices, 0, 0..1);
+            render_pass.pop_debug_group();
         }
 
         info!("running queue");

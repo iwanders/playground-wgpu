@@ -9,14 +9,14 @@ use zerocopy::{Immutable, IntoBytes};
 #[repr(u32)]
 pub enum LightType {
     #[default]
-    Off,
-    Omni,        // Spherical light (radiates outward in a circle)
-    Directional, // Directional (rays parallel)
-    Ambient,     // Just provides ambient illumination
+    Off = 0,
+    Directional = 1, // Directional (rays parallel)
+    Omni = 2,        // Spherical light (radiates outward in a circle)
+    Ambient = 3,     // Just provides ambient illumination
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, IntoBytes, Immutable, Default)]
-#[repr(C, packed)]
+#[repr(C)]
 pub struct Light {
     pub position: Vec3A,
     pub direction: Vec3A,
@@ -80,6 +80,22 @@ impl CpuLights {
         self
     }
 
+    pub const fn bind_group_layout() -> wgpu::BindGroupLayoutDescriptor<'static> {
+        wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("light_bind_group_layout"),
+        }
+    }
+
     pub fn to_gpu(&self) -> GpuLights {
         let light_buffer =
             self.context
@@ -89,22 +105,11 @@ impl CpuLights {
                     contents: self.lights.as_bytes(),
                     usage: wgpu::BufferUsages::STORAGE,
                 });
-        let light_bind_group_layout =
-            self.context
-                .device
-                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                    entries: &[wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    }],
-                    label: Some("light_bind_group_layout"),
-                });
+        let light_bind_group_layout = self
+            .context
+            .device
+            .create_bind_group_layout(&Self::bind_group_layout());
+
         let light_bind_group = self
             .context
             .device
