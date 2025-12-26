@@ -10,6 +10,9 @@ Set/Group: A collection of related bindings.
 
 
 https://github.com/shader-slang/slang/tree/master/examples/gpu-printing#gpu-printing
+
+
+    StructuredBuffer stride is 16?
 */
 
 enum LightType
@@ -63,14 +66,14 @@ StructuredBuffer<Light> light_uniform;
 
 struct VertexInput {
     float3 position;
-    uint vertex_index;
-    // uint vertexID : SV_VulkanVertexID;
+    // uint vertex_index;
+    uint vertexID : SV_VulkanVertexID;
     // uint vertexID : SV_VertexID;
     // float3 normal;
     // float3 color;
 };
-[[vk::binding(1, 2)]]
-StructuredBuffer<uint> vertex_indices;
+// [[vk::binding(1, 2)]]
+// StructuredBuffer<uint> vertex_indices;
 [[vk::binding(0, 2)]]
 StructuredBuffer<float3> vertex_normals;
 
@@ -96,7 +99,7 @@ VertexOutput vertexMain(VertexInput in)
     //out.clip_position = vec4<f32>(model.position.x, model.position.y, model.position.z, 1.0); // A: Yes this is equivalent.
     var   normal = float3(1.0, 0.0, 0.0);
     if (vertex_normals.getCount() > 0) {
-        normal = vertex_normals[ in.vertex_index] ;
+        normal = vertex_normals[ in.vertexID] ;
         // normal = vertex_normals[0];
     }
     // normal = vertex_normals[in.vertex_index];

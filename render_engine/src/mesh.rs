@@ -2,8 +2,6 @@ use glam::{Mat4, Vec2, Vec3, Vec3A, Vec4, vec3};
 use wgpu::util::DeviceExt as _;
 use zerocopy::IntoBytes as _;
 
-use crate::wgpu_util::BindGroupLayoutDescriptorOwned;
-
 /// A representation of a mesh on the CPU side.
 #[derive(Clone)]
 pub struct CpuMesh {
@@ -61,22 +59,12 @@ impl CpuMesh {
     /// Create a GPU mesh, the cpu mesh can go out of scope.
     pub fn to_gpu(&self, context: &crate::Context, layout: &wgpu::BindGroupLayout) -> GpuMesh {
         let name_prefix = self.get_name_prefix();
-        let vertex_values: Vec<GpuVertex> = self
-            .position
-            .iter()
-            .enumerate()
-            .map(|(index, position)| GpuVertex {
-                position: *position,
-                index: index as u32,
-                _pad: Default::default(),
-            })
-            .collect();
 
         let vertex_buffer = context
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some(&format!("{}_vertex", name_prefix)),
-                contents: vertex_values.as_bytes(),
+                contents: self.position.as_bytes(),
                 usage: wgpu::BufferUsages::VERTEX,
             });
         let index_buffer = context
@@ -108,13 +96,13 @@ impl CpuMesh {
                 layout: &layout,
                 entries: &[
                     wgpu::BindGroupEntry {
-                        binding: GpuMesh::MESH_BINDING_INDEX,
-                        resource: index_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
                         binding: GpuMesh::MESH_BINDING_NORMAL,
                         resource: normal_buffer.as_entire_binding(),
                     },
+                    // wgpu::BindGroupEntry {
+                    //     binding: GpuMesh::MESH_BINDING_INDEX,
+                    //     resource: index_buffer.as_entire_binding(),
+                    // },
                 ],
                 label: Some(&format!("{}_bind_group", name_prefix)),
             });
@@ -129,15 +117,6 @@ impl CpuMesh {
     }
 }
 
-use zerocopy::{Immutable, IntoBytes};
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug, IntoBytes, Immutable, Default)]
-pub struct GpuVertex {
-    pub position: Vec3,
-    pub index: u32,
-    pub _pad: [u8; 3 * 4],
-}
-
 #[derive(Clone, Debug)]
 pub struct GpuMesh {
     pub vertex_buffer: wgpu::Buffer,
@@ -149,23 +128,12 @@ pub struct GpuMesh {
 }
 
 impl GpuMesh {
-    pub const MESH_BINDING_INDEX: u32 = 1;
     pub const MESH_BINDING_NORMAL: u32 = 0;
+    // pub const MESH_BINDING_INDEX: u32 = 1;
     pub const MESH_LAYOUT: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
             label: Some("mesh_layout"),
             entries: &[
-                // Indices
-                wgpu::BindGroupLayoutEntry {
-                    binding: Self::MESH_BINDING_INDEX,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
                 // Normals
                 wgpu::BindGroupLayoutEntry {
                     binding: Self::MESH_BINDING_NORMAL,
@@ -177,18 +145,30 @@ impl GpuMesh {
                     },
                     count: None,
                 },
+                // // Indices
+                // wgpu::BindGroupLayoutEntry {
+                //     binding: Self::MESH_BINDING_INDEX,
+                //     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                //     ty: wgpu::BindingType::Buffer {
+                //         ty: wgpu::BufferBindingType::Storage { read_only: true },
+                //         has_dynamic_offset: false,
+                //         min_binding_size: None,
+                //     },
+                //     count: None,
+                // },
             ],
         };
 
     /// The vertex attributes only contain the positions, they are the only required component.
-    pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0 => Float32x3, 1=>Uint32];
+    pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 1] =
+        wgpu::vertex_attr_array![0 => Float32x3 ];
     /// Obtain the vertex layout.
     pub const fn get_vertex_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<GpuVertex>() as wgpu::BufferAddress,
+            array_stride: std::mem::size_of::<Vec3>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &Self::VERTEX_ATTRIBUTES,
         }
     }
 }
+crate::static_assert_size!(Vec3, 12);
