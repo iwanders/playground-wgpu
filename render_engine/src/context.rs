@@ -13,7 +13,6 @@ pub struct ContextReturn {
     pub target: Target,
     pub context: Context,
 }
-
 impl Context {
     pub async fn new_sized(width: u32, height: u32) -> Result<ContextReturn, crate::Error> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -28,11 +27,14 @@ impl Context {
                 force_fallback_adapter: false,
             })
             .await?;
+        log::info!("Features: {:#?}", adapter.features());
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::empty(),
-                experimental_features: wgpu::ExperimentalFeatures::disabled(),
+                required_features: wgpu::Features::EXPERIMENTAL_PASSTHROUGH_SHADERS
+                    | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY,
+                experimental_features: unsafe { wgpu::ExperimentalFeatures::enabled() },
+
                 // WebGL doesn't support all of wgpu's features, so if
                 // we're building for the web we'll have to disable some.
                 required_limits: wgpu::Limits::default(),
@@ -84,9 +86,9 @@ impl Context {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::empty(),
-                experimental_features: wgpu::ExperimentalFeatures::disabled(),
-                // WebGL doesn't support all of wgpu's features, so if
+                required_features: wgpu::Features::EXPERIMENTAL_PASSTHROUGH_SHADERS
+                    | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY,
+                experimental_features: unsafe { wgpu::ExperimentalFeatures::enabled() },
                 // we're building for the web we'll have to disable some.
                 required_limits: wgpu::Limits::default(),
                 memory_hints: Default::default(),

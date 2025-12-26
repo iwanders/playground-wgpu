@@ -147,6 +147,7 @@ impl LocalState {
         Self { persistent: None }
     }
 }
+const USE_SPIRV_SHADER: bool = true;
 impl simple_start::Drawable for LocalState {
     fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error> {
         state.camera.eye = vec3(-0.6, -0.65, 0.43);
@@ -161,7 +162,25 @@ impl simple_start::Drawable for LocalState {
 
         */
 
-        let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+        // let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
+        let shader = if USE_SPIRV_SHADER {
+            let config = wgpu::ShaderModuleDescriptorPassthrough {
+                label: Some("shader.spv"),
+                spirv: Some(wgpu::util::make_spirv_raw(include_bytes!("shader.spv"))),
+                entry_point: "".to_owned(),
+                // This is unused for SPIR-V
+                num_workgroups: (0, 0, 0),
+                runtime_checks: wgpu::ShaderRuntimeChecks::unchecked(),
+                dxil: None,
+                msl: None,
+                hlsl: None,
+                glsl: None,
+                wgsl: None,
+            };
+            unsafe { device.create_shader_module_passthrough(config) }
+        } else {
+            device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"))
+        };
 
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
@@ -222,6 +241,7 @@ impl simple_start::Drawable for LocalState {
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Shader Uniform"),
             contents: [our_uniform].as_bytes(),
+
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
@@ -287,7 +307,7 @@ impl simple_start::Drawable for LocalState {
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -321,14 +341,22 @@ impl simple_start::Drawable for LocalState {
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: None,
+                entry_point: if USE_SPIRV_SHADER {
+                    Some("vertexMain")
+                } else {
+                    None
+                },
                 // buffers: &[],
                 buffers: &[Vertex::desc()],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: None,
+                entry_point: if USE_SPIRV_SHADER {
+                    Some("fragmentMain")
+                } else {
+                    None
+                },
                 targets: &[Some(wgpu::ColorTargetState {
                     format: texture_format,
                     blend: Some(wgpu::BlendState {
