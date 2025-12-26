@@ -53,7 +53,7 @@ impl Camera {
         // https://github.com/bitshifter/glam-rs/issues/569
         // Okay, so this doesn't actually do what we need :<
         //let view = Mat4::look_at_rh(self.eye, self.target, self.up);
-        info!("self: {:?}", self);
+        // info!("self: {:?}", self);
         let proj = Mat4::perspective_rh(self.fovy.to_radians(), self.aspect, self.znear, self.zfar);
         let view = Mat4::look_at_rh(self.eye, self.target, self.up);
         return proj * view;

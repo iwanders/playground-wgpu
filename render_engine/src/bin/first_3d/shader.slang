@@ -17,7 +17,8 @@ struct CameraUniform {
 // @group(0) @binding(0)
 // var<uniform> our_uniform: CameraUniform;
 [[vk::binding(0,0)]]
-ConstantBuffer<CameraUniform> our_uniform;
+StructuredBuffer<CameraUniform> our_uniform;
+
 
 
 struct Light {
@@ -128,6 +129,7 @@ struct VertexOutput {
 VertexOutput vertexMain(VertexInput in)
 {
     VertexOutput out;
+    let our_uniform= our_uniform[0];
     let world_position = mul(our_uniform.model_matrix , float4(in.position, 1.0));
    // out.color = model.color;
     out.color = float3(1.0, 1.0, 1.0);
@@ -239,6 +241,6 @@ Fragment fragmentMain( VertexOutput in) : SV_Target
    	// let corrected_color = pow(color, vec3f(2.2));
     Fragment output;
     output.color = float4(corrected_color, 1.0);
-    output.color.x = 0;
+    // output.color.x = 0;
    	return output;
 }

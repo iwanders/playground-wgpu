@@ -236,13 +236,13 @@ impl simple_start::Drawable for LocalState {
             camera_world_position,
             model_tf: persistent.model_tf,
         };
-        warn!("our_uniform: {our_uniform:?}");
+        // warn!("our_uniform: {our_uniform:?}");
 
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Shader Uniform"),
             contents: [our_uniform].as_bytes(),
 
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::STORAGE,
         });
 
         let l1_theta = simple_start::get_angle_f32(1.2);
@@ -309,7 +309,7 @@ impl simple_start::Drawable for LocalState {
                     binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
                         has_dynamic_offset: false,
                         min_binding_size: None,
                     },
@@ -442,7 +442,6 @@ impl simple_start::Drawable for LocalState {
             render_pass.pop_debug_group();
         }
 
-        info!("running queue");
         // state
         //     .add_screenshot_to_encoder(&mut encoder)
         //     .with_context(|| "adding screenshot to encoder failed")
