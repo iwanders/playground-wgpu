@@ -1,13 +1,48 @@
-// A material is effectively a render pipeline.
-
+// ~A material is effectively a render pipeline.~
+//
+// A material may be made up of a bunch of pipelines
+//  All draws associated to the same pipeline can be done in one pass?
+// Pipelines are ran in order, with objects that are part of the pipeline being drawn?
+// One pass can use multiple pipelines.
+//
+// How do we use this multi draw?
 // https://github.com/gfx-rs/wgpu/pull/754
+// On render bundles; https://toji.dev/webgpu-best-practices/render-bundles.html#resource-updates
+//   Commands are static, data in them is not!
+//   More on indirect draws
+//   https://toji.dev/webgpu-best-practices/indirect-draws
+//     -> compute culling; https://vkguide.dev/docs/gpudriven/compute_culling/
+//
+//   Oh, hmm, we can bind buffer array as well; https://docs.rs/wgpu/latest/wgpu/enum.BindingResource.html#variant.BufferArray hmm
+//
+// helpful:
+//   https://github.com/gfx-rs/wgpu-rs/issues/18#issuecomment-499362497
+//   https://github.com/gfx-rs/wgpu-rs/issues/18#issuecomment-499550688
+//
+// Most objects can share the vertex stage, but will have a different fragment stage?
+// Mesh shaders output vertices, but could still share the fragment shaders.
+// Should split out the stages.
+//
+//
+// Okay, so a single render pass can use multiple pipelines, but pipelines are expensive so we want swap them as little
+// as possible.
+//
+// We want to structure the overarching system by:
+//    - Render pass.
+//      - n pipelines
+//        - geometries per pipeline.
+//
+// Render pass need not be sequential, they can have arbitrary parents and attachnment inputs.
+//
+// This also allows us to have a 'postprocess' render pass that works in screen space over a viewport wide rectangle?
+// For a set of geometries to be drawn, they thus need:
+//  A list of (render_pass, pipeline) combinations.
+//
 
 pub struct PhongLikeMaterialConfig {
     pub rgba_format: wgpu::TextureFormat,
     pub depth_format: wgpu::TextureFormat,
 }
-
-struct PhongLikeGroups {}
 
 /// A phong-shading like material. Not quite... because I made a mess.
 pub struct PhongLikeMaterial {

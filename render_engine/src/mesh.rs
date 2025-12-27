@@ -23,6 +23,7 @@ pub struct CpuMesh {
 
     /// The UV mapping
     pub uv: Option<Vec<Vec2>>,
+    // apparently most PBR materials have two UV maps :/
 }
 
 impl CpuMesh {

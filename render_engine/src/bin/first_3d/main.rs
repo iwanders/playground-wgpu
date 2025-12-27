@@ -1,6 +1,6 @@
 use glam::{Mat4, Vec3, Vec3A, vec3, vec3a};
 use log::*;
-use simple_start::State;
+use simple_start::{State, view::CameraView};
 use wgpu::util::DeviceExt;
 
 use gltf;
@@ -46,7 +46,7 @@ impl LocalState {
 const USE_SPIRV_SHADER: bool = true;
 impl simple_start::Drawable for LocalState {
     fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error> {
-        state.camera.eye = vec3(-0.6, -0.65, 0.43);
+        state.camera.camera.eye = vec3(-0.6, -0.65, 0.43);
         let device = &state.context.device;
 
         /*
@@ -89,7 +89,7 @@ impl simple_start::Drawable for LocalState {
 
         let model_tf = Mat4::IDENTITY
             * Mat4::from_rotation_x(std::f32::consts::PI)
-            * Mat4::from_translation(vec3(0.0, 0.0, 0.5))
+            // * Mat4::from_translation(vec3(0.0, 0.0, 0.5))
             * Mat4::from_scale(Vec3::splat(0.1));
 
         self.persistent = Some(PersistentState {
@@ -115,9 +115,9 @@ impl simple_start::Drawable for LocalState {
         let vertex_buffer = &persistent.gpu_mesh.vertex_buffer;
         let index_buffer = &persistent.gpu_mesh.index_buffer;
 
-        let camera_world_position = state.camera.eye.into();
+        let camera_world_position = state.camera.camera.eye.into();
         let our_uniform = OurUniform {
-            view_proj: state.camera.to_view_projection_matrix(),
+            view_proj: state.camera.to_view_matrix(),
             camera_world_position,
             model_tf: persistent.model_tf,
         };
@@ -160,7 +160,7 @@ impl simple_start::Drawable for LocalState {
         let destination = state.target.destination()?;
         let width = destination.width();
         let height = destination.height();
-        state.camera.aspect = width as f32 / height as f32;
+        state.camera.camera.aspect = width as f32 / height as f32;
 
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
 

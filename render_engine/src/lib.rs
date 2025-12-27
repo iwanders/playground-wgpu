@@ -21,7 +21,6 @@ pub mod context;
 pub mod lights;
 
 pub mod mesh;
-pub mod orbit_camera;
 pub mod render;
 pub mod target;
 pub mod view;
@@ -58,7 +57,7 @@ pub struct State {
     // pub texture: wgpu::Texture,
     // pub texture_view: wgpu::TextureView,
     pub window: Option<Arc<Window>>,
-    pub camera: orbit_camera::Camera,
+    pub camera: view::orbit::OrbitCamera,
     // pub config: wgpu::SurfaceConfiguration,
     pub is_surface_configured: bool,
     pub mouse_left_down: bool,
@@ -89,7 +88,7 @@ impl State {
             target,
             window,
             // config,
-            camera: orbit_camera::Camera::new(width, height),
+            camera: view::orbit::OrbitCamera::new(width, height),
             is_surface_configured: false,
             mouse_left_down: false,
             mouse_position: Default::default(),
