@@ -31,7 +31,6 @@ pub struct OurUniform {
 }
 
 struct PersistentState {
-    shader: wgpu::ShaderModule,
     gpu_mesh: simple_start::mesh::GpuMesh,
     model_tf: Mat4,
 }
@@ -43,40 +42,9 @@ impl LocalState {
         Self { persistent: None }
     }
 }
-const USE_SPIRV_SHADER: bool = true;
 impl simple_start::Drawable for LocalState {
     fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error> {
         state.camera.camera.eye = vec3(-0.6, -0.65, 0.43);
-        let device = &state.context.device;
-
-        /*
-         * Nope
-        Caused by:
-          In Device::create_shader_module, label = 'shader.spv'
-
-        Shader 'shader.spv' parsing error: UnsupportedInstruction(Function, CopyLogical)
-
-        */
-
-        // let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
-        let shader = if USE_SPIRV_SHADER {
-            let config = wgpu::ShaderModuleDescriptorPassthrough {
-                label: Some("shader.spv"),
-                spirv: Some(wgpu::util::make_spirv_raw(include_bytes!("shader.spv"))),
-                entry_point: "".to_owned(),
-                // This is unused for SPIR-V
-                num_workgroups: (0, 0, 0),
-                runtime_checks: wgpu::ShaderRuntimeChecks::unchecked(),
-                dxil: None,
-                msl: None,
-                hlsl: None,
-                glsl: None,
-                wgsl: None,
-            };
-            unsafe { device.create_shader_module_passthrough(config) }
-        } else {
-            device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"))
-        };
 
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         // let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
@@ -92,11 +60,7 @@ impl simple_start::Drawable for LocalState {
             // * Mat4::from_translation(vec3(0.0, 0.0, 0.5))
             * Mat4::from_scale(Vec3::splat(0.1));
 
-        self.persistent = Some(PersistentState {
-            shader,
-            gpu_mesh,
-            model_tf,
-        });
+        self.persistent = Some(PersistentState { gpu_mesh, model_tf });
 
         Ok(())
     }
@@ -111,7 +75,6 @@ impl simple_start::Drawable for LocalState {
         let device = &state.context.device;
         // Something something... fragment shader... set colors? >_<
         let persistent = self.persistent.as_ref().unwrap();
-        let shader = &persistent.shader;
         let vertex_buffer = &persistent.gpu_mesh.vertex_buffer;
         let index_buffer = &persistent.gpu_mesh.index_buffer;
 
@@ -213,85 +176,14 @@ impl simple_start::Drawable for LocalState {
             label: Some("camera_bind_group"),
         });
 
-        let light_bind_group_layout = gpu_lights.light_bind_group_layout;
         let light_bind_group = gpu_lights.light_bind_group;
 
-        let mesh_group_layout =
-            device.create_bind_group_layout(&simple_start::mesh::GpuMesh::MESH_LAYOUT);
-        let mesh_group_layout = &mesh_group_layout;
-
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &camera_bind_group_layout,
-                    &light_bind_group_layout,
-                    mesh_group_layout,
-                ],
-                push_constant_ranges: &[],
-            });
-
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: if USE_SPIRV_SHADER {
-                    Some("vertexMain")
-                } else {
-                    None
-                },
-                // buffers: &[],
-                buffers: &[simple_start::mesh::GpuMesh::get_vertex_layout()],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: if USE_SPIRV_SHADER {
-                    Some("fragmentMain")
-                } else {
-                    None
-                },
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: texture_format,
-                    blend: Some(wgpu::BlendState {
-                        alpha: wgpu::BlendComponent::REPLACE,
-                        color: wgpu::BlendComponent::REPLACE,
-                    }),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                // cull_mode: None,
-                // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-                polygon_mode: wgpu::PolygonMode::Fill,
-                // Requires Features::DEPTH_CLIP_CONTROL
-                unclipped_depth: false,
-                // Requires Features::CONSERVATIVE_RASTERIZATION
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less, // 1.
-                stencil: wgpu::StencilState::default(),     // 2.
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            // If the pipeline will be used with a multiview render pass, this
-            // indicates how many array layers the attachments will have.
-            multiview: None,
-            cache: None,
-        });
+        let config = simple_start::render::PhongLikeMaterialConfig {
+            rgba_format: texture_format,
+            depth_format: DEPTH_FORMAT,
+        };
+        let material = simple_start::render::PhongLikeMaterial::new(&state.context, &config);
+        let render_pipeline = material.render_pipeline;
 
         let view = destination.get_view();
 
