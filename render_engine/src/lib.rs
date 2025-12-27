@@ -48,17 +48,8 @@ pub enum Error {
 pub struct State {
     pub context: context::Context,
     pub target: target::Target,
-    // instance: wgpu::Instance,
-    // pub surface: Option<wgpu::Surface<'static>>,
-    //pub surface: wgpu::Surface<'static>,
-    // pub device: wgpu::Device,
-    // pub queue: wgpu::Queue,
-    // pub buffer: wgpu::Buffer,
-    // pub texture: wgpu::Texture,
-    // pub texture_view: wgpu::TextureView,
     pub window: Option<Arc<Window>>,
     pub camera: view::orbit::OrbitCamera,
-    // pub config: wgpu::SurfaceConfiguration,
     pub is_surface_configured: bool,
     pub mouse_left_down: bool,
     pub mouse_position: winit::dpi::PhysicalPosition<f64>,
@@ -153,18 +144,6 @@ use std::sync::Arc;
 pub trait Drawable {
     fn render(&mut self, state: &mut State) -> Result<(), crate::Error>;
     fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error>;
-}
-
-pub struct DummyDraw;
-impl Drawable for DummyDraw {
-    fn render(&mut self, state: &mut State) -> Result<(), crate::Error> {
-        let _ = state;
-        Ok(())
-    }
-    fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error> {
-        let _ = state;
-        Ok(())
-    }
 }
 
 pub struct App<T: Drawable> {

@@ -38,6 +38,78 @@
 // For a set of geometries to be drawn, they thus need:
 //  A list of (render_pass, pipeline) combinations.
 //
+// The actual renderable is the output of a vertex buffer;
+//  - Mesh shaders output vertex data based on... nothing or arbitrary data input.
+//  - Vertex shader + polygons output vertex data.
+//
+//  - The pipeline specifies how the vertex data is produced AND which fragment shader is used.
+//  - A compute pipeline & buffer would be nice to fit in as arbitrary passess as well... hmm.
+//
+//  - Lights is technically a property of the fragment shader?
+//
+// Pass always uses the same color & depth attachments.
+//
+// For the render:
+//  We record the command buffers with the current data.
+//  We submit the command buffers.
+
+// Not sold on this.
+
+/*
+pub struct RenderPassId(usize);
+pub struct RenderPipelineId(usize);
+
+pub struct SimpleRenderableMesh {
+    mesh: super::mesh::GpuMesh,
+    part_of: (RenderPassId, RenderPipelineId),
+}
+
+pub trait Renderable {
+    fn is_part_of(&self, pass_id: RenderPassId, pipeline_id: RenderPipelineId) -> bool;
+    fn add_commands(&self, our_pass: &mut wgpu::RenderPass);
+}
+
+pub struct RenderPipeline {
+    id: RenderPipelineId,
+    pipeline: wgpu::RenderPipeline,
+}
+
+// Practically an owned RenderPassDescriptor, with some extras
+pub struct RenderPass {
+    id: RenderPassId,
+    pub label: Option<String>,
+    pipelines: Vec<RenderPipeline>,
+    color_attachments: Vec<()>,
+    depth_attachment: Option<()>,
+}
+
+pub struct Renderer {
+    passess: Vec<RenderPass>,
+}
+
+impl Renderer {
+    pub fn add_to_encoder(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        renderables: &[&dyn Renderable],
+    ) {
+        for this_pass in self.passess.iter() {
+            let encode_pass = encoder.begin_render_pass(todo!());
+            for pipeline in this_pass.pipelines.iter() {
+                encode_pass.set_pipeline(&pipeline.pipeline);
+
+                // Set camera & lights bind.
+
+                // Then do the renderables.
+                for r in renderables.iter() {
+                    if r.is_part_of(this_pass.id, pipeline.id) {
+                        r.add_commands(&mut encode_pass);
+                    }
+                }
+            }
+        }
+    }
+}*/
 
 pub struct PhongLikeMaterialConfig {
     pub rgba_format: wgpu::TextureFormat,
