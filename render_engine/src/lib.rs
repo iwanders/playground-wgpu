@@ -4,6 +4,9 @@
    Bind group 1; material stuff
    Bind group 2; object stuff.
 
+
+   https://github.com/gfx-rs/wgpu/issues/6273
+
 */
 use anyhow::Context as WithContext;
 use glam::{Mat4, Vec3, vec3};
@@ -18,6 +21,8 @@ pub mod context;
 pub mod lights;
 
 pub mod mesh;
+pub mod orbit_camera;
+pub mod render;
 pub mod target;
 pub mod view;
 
@@ -53,7 +58,7 @@ pub struct State {
     // pub texture: wgpu::Texture,
     // pub texture_view: wgpu::TextureView,
     pub window: Option<Arc<Window>>,
-    pub camera: view::Camera,
+    pub camera: orbit_camera::Camera,
     // pub config: wgpu::SurfaceConfiguration,
     pub is_surface_configured: bool,
     pub mouse_left_down: bool,
@@ -84,7 +89,7 @@ impl State {
             target,
             window,
             // config,
-            camera: view::Camera::new(width, height),
+            camera: orbit_camera::Camera::new(width, height),
             is_surface_configured: false,
             mouse_left_down: false,
             mouse_position: Default::default(),

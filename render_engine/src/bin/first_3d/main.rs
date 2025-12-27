@@ -25,8 +25,6 @@ use zerocopy::{Immutable, IntoBytes};
 // This is so we can store this in a buffer
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
 pub struct OurUniform {
-    // ~We can't use cgmath with bytemuck directly, so we'll have~
-    // we use glam so we can.
     pub view_proj: Mat4,
     pub model_tf: Mat4,
     pub camera_world_position: Vec3A,
@@ -35,7 +33,6 @@ pub struct OurUniform {
 struct PersistentState {
     shader: wgpu::ShaderModule,
     gpu_mesh: simple_start::mesh::GpuMesh,
-    mesh_group_layout: wgpu::BindGroupLayout,
     model_tf: Mat4,
 }
 struct LocalState {
@@ -88,9 +85,7 @@ impl simple_start::Drawable for LocalState {
         // info!("document: {document:#?}");
         let cpu_mesh = simple_start::loader::load_gltf(document, &buffers, 0);
 
-        let mesh_group_layout =
-            device.create_bind_group_layout(&simple_start::mesh::GpuMesh::MESH_LAYOUT);
-        let gpu_mesh = cpu_mesh.to_gpu(&state.context, &mesh_group_layout);
+        let gpu_mesh = cpu_mesh.to_gpu(&state.context);
 
         let model_tf = Mat4::IDENTITY
             * Mat4::from_rotation_x(std::f32::consts::PI)
@@ -100,7 +95,6 @@ impl simple_start::Drawable for LocalState {
         self.persistent = Some(PersistentState {
             shader,
             gpu_mesh,
-            mesh_group_layout,
             model_tf,
         });
 
@@ -222,7 +216,9 @@ impl simple_start::Drawable for LocalState {
         let light_bind_group_layout = gpu_lights.light_bind_group_layout;
         let light_bind_group = gpu_lights.light_bind_group;
 
-        let mesh_group_layout = &persistent.mesh_group_layout;
+        let mesh_group_layout =
+            device.create_bind_group_layout(&simple_start::mesh::GpuMesh::MESH_LAYOUT);
+        let mesh_group_layout = &mesh_group_layout;
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -332,11 +328,14 @@ impl simple_start::Drawable for LocalState {
             };
             let mut render_pass = encoder.begin_render_pass(&render_pass_desc);
             render_pass.push_debug_group("Things");
+
+            // Setup
             render_pass.set_pipeline(&render_pipeline);
             render_pass.set_bind_group(0, &camera_bind_group, &[]);
             render_pass.set_bind_group(1, &light_bind_group, &[]);
-            render_pass.set_bind_group(2, &persistent.gpu_mesh.bind_group, &[]);
 
+            // Object properties.
+            render_pass.set_bind_group(2, &persistent.gpu_mesh.bind_group, &[]);
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..num_indices, 0, 0..1);

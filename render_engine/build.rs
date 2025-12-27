@@ -1,5 +1,6 @@
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
+    println!("cargo::rerun-if-changed=src/render/");
 
     let src_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let mut slang_files = Vec::new();

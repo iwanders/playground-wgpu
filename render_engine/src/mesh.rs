@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec2, Vec3, Vec3A, Vec4, vec3};
+use glam::{Vec2, Vec3, Vec3A, Vec4};
 use wgpu::util::DeviceExt as _;
 use zerocopy::IntoBytes as _;
 
@@ -26,7 +26,7 @@ pub struct CpuMesh {
 }
 
 impl CpuMesh {
-    /// Create a new cpu mesh, not validating anything.
+    /// Create a new cpu mesh, not validating anything!
     pub fn new(position: Vec<Vec3>, index: Vec<u32>) -> Self {
         Self {
             position,
@@ -38,6 +38,7 @@ impl CpuMesh {
         }
     }
 
+    /// Set the useful name for renderdoc and diagnostic errors.
     pub fn with_name(mut self, name: &str) -> Self {
         self.name = Some(name.to_owned());
         self
@@ -56,9 +57,14 @@ impl CpuMesh {
         name_prefix
     }
 
-    /// Create a GPU mesh, the cpu mesh can go out of scope.
-    pub fn to_gpu(&self, context: &crate::Context, layout: &wgpu::BindGroupLayout) -> GpuMesh {
+    /// Create the gpu mesh, which is independent of the CPU Mesh.
+    pub fn to_gpu(&self, context: &crate::Context) -> GpuMesh {
         let name_prefix = self.get_name_prefix();
+
+        // We can locally create this, and use it for the layout, it doesn't need to be the exact same instance.
+        let layout = context
+            .device
+            .create_bind_group_layout(&crate::mesh::GpuMesh::MESH_LAYOUT);
 
         let vertex_buffer = context
             .device
@@ -110,6 +116,10 @@ impl CpuMesh {
                 label: Some(&format!("{}_bind_group", name_prefix)),
             });
 
+        if self.uv.is_some() {
+            todo!("still need to implement uv coords");
+        }
+
         GpuMesh {
             vertex_buffer,
             index_buffer,
@@ -121,15 +131,17 @@ impl CpuMesh {
     }
 }
 
+/// Representation of a mesh on the gpu side, not tied to the CpuMesh.
 #[derive(Clone, Debug)]
 pub struct GpuMesh {
+    /// The bindgroup that contains all the buffers.
     pub bind_group: wgpu::BindGroup,
 
     /// Buffer holding the position data.
     pub vertex_buffer: wgpu::Buffer,
     /// Buffer holding the indices for the vertex data.
     pub index_buffer: wgpu::Buffer,
-    /// TOtal number of indices.
+    /// Total number of indices.
     pub index_length: u32,
 
     //--- Optionals below, if they are unused, they are zero length, but still bound.
@@ -181,4 +193,6 @@ impl GpuMesh {
         }
     }
 }
+
 crate::static_assert_size!(Vec3, 12);
+crate::static_assert_size!(Vec3, GpuMesh::get_vertex_layout().array_stride as _);
