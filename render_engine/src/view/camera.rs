@@ -1,7 +1,4 @@
-use glam::{Mat4, Vec3, vec3};
-use log::*;
-use zerocopy::{Immutable, IntoBytes};
-
+use glam::{Mat4, Vec3};
 #[derive(Copy, Clone, Debug)]
 pub struct Camera {
     /// Location of the camera position.

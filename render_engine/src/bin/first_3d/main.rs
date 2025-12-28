@@ -1,7 +1,6 @@
-use glam::{Mat4, Vec3, Vec3A, vec3, vec3a};
+use glam::{Mat4, vec3};
 use log::*;
 use simple_start::{State, view::CameraView};
-use wgpu::util::DeviceExt;
 
 use gltf;
 
@@ -20,8 +19,6 @@ use gltf;
 //
 
 use simple_start::vertex::mesh_object::MeshObject;
-use zerocopy::{Immutable, IntoBytes};
-
 struct PersistentState {
     mesh_object: MeshObject,
     depth_format: wgpu::TextureFormat,
@@ -42,7 +39,7 @@ impl simple_start::Drawable for LocalState {
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         // let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
         let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
-        let (document, buffers, images) = gltf::import(gltf_path)?;
+        let (document, buffers, _images) = gltf::import(gltf_path)?;
         // info!("document: {document:#?}");
         let cpu_mesh = simple_start::loader::load_gltf(document, &buffers, 0);
 
@@ -84,13 +81,8 @@ impl simple_start::Drawable for LocalState {
         }
 
         let device = &state.context.device;
-        // Something something... fragment shader... set colors? >_<
         let persistent = self.persistent.as_mut().unwrap();
-        // let vertex_buffer = &persistent.gpu_mesh.vertex_buffer;
-        // let index_buffer = &persistent.gpu_mesh.index_buffer;
 
-        let l1_theta = simple_start::get_angle_f32(1.2);
-        let l2_theta = -simple_start::get_angle_f32(0.7) + 3.14;
         let l1_theta: f32 = 0.3;
         let l2_theta: f32 = 2.3;
         let radius = 0.2;
@@ -155,6 +147,7 @@ impl simple_start::Drawable for LocalState {
                 rgba_format: texture_format,
                 depth_format: persistent.depth_format,
             };
+            info!("Setting up pipeline with {texture_format:?}");
 
             simple_start::render::PhongLikeMaterial::new(
                 &state.context,

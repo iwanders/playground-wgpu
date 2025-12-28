@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use log::*;
 use std::sync::Arc;
-use winit::{event::*, event_loop::EventLoop, keyboard::PhysicalKey, window::Window};
+use winit::window::Window;
 
 use std::path::Path;
 #[derive(Debug)]
@@ -46,8 +46,8 @@ impl TargetDestination {
 impl Target {
     pub fn get_target(&self) -> Option<&wgpu::Surface<'static>> {
         match &self.inner {
-            InnerTarget::WindowSurface { surface, window } => Some(surface),
-            InnerTarget::Texture { texture } => None,
+            InnerTarget::WindowSurface { surface, .. } => Some(surface),
+            InnerTarget::Texture { .. } => None,
         }
     }
     pub fn destination(&self) -> Result<TargetDestination, crate::Error> {
@@ -100,7 +100,7 @@ impl Target {
                     false
                 }
             }
-            InnerTarget::Texture { texture } => false,
+            InnerTarget::Texture { .. } => false,
         }
     }
 
@@ -159,7 +159,7 @@ impl Target {
         let buffer_slice = buffer.slice(..);
 
         let texture = match &self.inner {
-            InnerTarget::WindowSurface { surface, window } => todo!(),
+            InnerTarget::WindowSurface { .. } => todo!(),
             InnerTarget::Texture { texture } => texture,
         };
 

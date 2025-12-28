@@ -48,13 +48,13 @@ pub fn load_gltf(
                     if let Some(colors) = reader.read_colors(0) {
                         let color_container = color_buffer.get_or_insert_default();
                         match colors {
-                            gltf::mesh::util::ReadColors::RgbU8(iter) => todo!(),
-                            gltf::mesh::util::ReadColors::RgbU16(iter) => todo!(),
+                            gltf::mesh::util::ReadColors::RgbU8(_iter) => todo!(),
+                            gltf::mesh::util::ReadColors::RgbU16(_iter) => todo!(),
                             gltf::mesh::util::ReadColors::RgbF32(iter) => {
                                 color_container.extend(iter.map(|v| vec4(v[0], v[1], v[2], 1.0)));
                             }
-                            gltf::mesh::util::ReadColors::RgbaU8(iter) => todo!(),
-                            gltf::mesh::util::ReadColors::RgbaU16(iter) => todo!(),
+                            gltf::mesh::util::ReadColors::RgbaU8(_iter) => todo!(),
+                            gltf::mesh::util::ReadColors::RgbaU16(_iter) => todo!(),
                             gltf::mesh::util::ReadColors::RgbaF32(iter) => {
                                 color_container.extend(iter.map(|v| vec4(v[0], v[1], v[2], v[3])));
                             }
@@ -65,7 +65,7 @@ pub fn load_gltf(
                         let normal_container = normal_buffer.get_or_insert_default();
                         // normal_container.resize(vertex_buffer.len(), Default::default());
 
-                        for (ni, n) in normals.enumerate() {
+                        for n in normals {
                             // Do something with the normal [n[0], n[1], n[2]]
                             normal_container.push(vec3a(n[0], n[1], n[2]));
                             // normal_container[ni] = vec3(n[0], n[1], n[2]);

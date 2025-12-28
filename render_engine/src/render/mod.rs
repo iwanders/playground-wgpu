@@ -159,19 +159,8 @@ impl PhongLikeMaterial {
 
         let mesh_layout =
             device.create_bind_group_layout(&crate::vertex::mesh_object::MeshObject::MESH_LAYOUT);
-        let camera_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            entries: &[wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-            label: Some("camera_bind_group_layout"),
-        });
+        let camera_layout =
+            device.create_bind_group_layout(&crate::view::ViewUniform::bind_group_layout());
         let light_layout =
             device.create_bind_group_layout(&crate::lights::CpuLights::bind_group_layout());
 

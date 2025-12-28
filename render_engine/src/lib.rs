@@ -12,13 +12,11 @@
 
 */
 use anyhow::Context as WithContext;
-use glam::{Mat4, Vec3, vec3};
 use log::*;
 use std::path::Path;
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
 use winit::{event::*, event_loop::EventLoop, keyboard::PhysicalKey, window::Window};
-use zerocopy::{Immutable, IntoBytes};
 
 pub mod context;
 pub mod lights;
@@ -32,8 +30,7 @@ pub mod vertex;
 pub mod loader;
 pub mod wgpu_util;
 
-use context::{Context, ContextReturn};
-use target::Target;
+use context::Context;
 
 use thiserror::Error;
 
@@ -214,6 +211,7 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
+                let _ = size;
                 error!("Resize happened");
                 state.is_surface_configured = state.target.reconfigure();
             }
@@ -226,6 +224,7 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
                         | Error::SurfaceError(wgpu::SurfaceError::Outdated),
                     ) => {
                         if let Some(window) = state.window.as_ref() {
+                            let _ = window;
                             // let ContextReturn { context, target } =
                             //     pollster::block_on(Context::new_window(window.clone())).unwrap();
                             // state.context = context;
@@ -290,12 +289,9 @@ pub async fn async_render<P: AsRef<Path>>(
     height: u32,
     path: P,
 ) -> std::result::Result<(), anyhow::Error> {
-    let p: &Path = path.as_ref();
     let mut app = App::new_sized(drawable, width, height).await;
     app.render_to_surface().await;
-    info!("things");
     if let Some(state) = app.state.as_ref() {
-        info!("state!");
         state.save(path).await?;
     }
 
