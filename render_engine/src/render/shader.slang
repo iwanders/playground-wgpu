@@ -16,6 +16,9 @@ https://github.com/shader-slang/slang/tree/master/examples/gpu-printing#gpu-prin
 
     StructuredBuffer stride is 16?
 */
+
+#include "../shader_common.slang"
+
 enum LightType
 {
     LIGHT_TYPE_OFF = 0,
@@ -24,14 +27,6 @@ enum LightType
     LIGHT_TYPE_AMBIENT = 3,
 };
 
-// Vertex shader
-struct CameraUniform {
-    float4x4 view_proj;
-    float4x4 model_matrix;
-    float3 camera_world_position;
-};
-[[vk::binding(0, 0)]]
-StructuredBuffer<CameraUniform> our_uniform;
 
 struct Light {
     float3 position;
@@ -64,65 +59,16 @@ struct LightUniform {
 StructuredBuffer<Light> light_uniform;
 
 
-struct VertexInput {
-    float3 position;
-    uint vertexID : SV_VulkanVertexID;
-};
-static const int MESH_BINDING_NORMAL = 0;
-static const int MESH_BINDING_COLOR = 1;
-
-[[vk::binding(MESH_BINDING_NORMAL, 2)]]
-StructuredBuffer<float3> vertex_normal;
-
-[[vk::binding(MESH_BINDING_COLOR, 2)]]
-StructuredBuffer<float4> vertex_color;
-
-struct VertexOutput {
-    //@builtin(position) clip_position: vec4<f32>,
-    float4          clip_position     : SV_Position;
-    float3 color;
-    float3 normal;
-    float3 viewDirection;
-    float3 world_pos;
-};
-
-
-
-[shader("vertex")]
-VertexOutput vertexMain(VertexInput in)
-{
-    VertexOutput out;
-    let our_uniform= our_uniform[0];
-    let world_position = mul(our_uniform.model_matrix , float4(in.position, 1.0));
-   // out.color = model.color;
-    out.color = float3(1.0, 1.0, 1.0);
-    if (vertex_color.getCount() > 0) {
-        out.color = vertex_color[in.vertexID].xyz;
-    }
-    //out.clip_position = vec4<f32>(model.position.x, model.position.y, model.position.z, 1.0); // A: Yes this is equivalent.
-    var   normal = float3(1.0, 0.0, 0.0);
-    if (vertex_normal.getCount() > 0) {
-        normal = vertex_normal[ in.vertexID] ;
-        // normal = vertex_normals[0];
-    }
-    // normal = vertex_normals[in.vertex_index];
-    out.clip_position = mul(our_uniform.view_proj , mul(our_uniform.model_matrix , float4(in.position, 1.0))); // 2.
-    out.normal = mul(our_uniform.model_matrix, float4(normal, 0.0)).xyz;
-    out.viewDirection = our_uniform.camera_world_position - world_position.xyz;
-    out.world_pos = mul(our_uniform.model_matrix , float4(in.position, 1.0)).xyz;
-    return out;
-}
-
 // Output of the fragment shader
 struct Fragment
 {
     float4 color;
 };
 [shader("fragment")]
-Fragment fragmentMain( VertexOutput in) : SV_Target
+Fragment fragmentMain( CommonVertexOutput in) : SV_Target
 {
     let N = normalize(in.normal);
-   	let V = normalize(in.viewDirection);
+   	let V = normalize(in.view_vector);
 
    	// Sample texture
    	let baseColor = in.color;

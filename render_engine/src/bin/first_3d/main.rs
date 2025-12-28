@@ -21,18 +21,9 @@ use gltf;
 
 use simple_start::vertex::mesh_object::MeshObject;
 use zerocopy::{Immutable, IntoBytes};
-#[repr(C)]
-// This is so we can store this in a buffer
-#[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
-pub struct OurUniform {
-    pub view_proj: Mat4,
-    pub model_tf: Mat4,
-    pub camera_world_position: Vec3A,
-}
 
 struct PersistentState {
     mesh_object: MeshObject,
-    model_tf: Mat4,
 }
 struct LocalState {
     persistent: Option<PersistentState>,
@@ -57,18 +48,10 @@ impl simple_start::Drawable for LocalState {
         let mut mesh_object =
             simple_start::vertex::mesh_object::MeshObject::new(state.context.clone(), gpu_mesh);
         mesh_object.set_single_transform(&Mat4::IDENTITY);
-        mesh_object.set_transforms(&[Mat4::IDENTITY, Mat4::from_rotation_x(3.0)]);
+        mesh_object.set_transforms(&[Mat4::IDENTITY, Mat4::from_translation(vec3(1.5, 0.0, 0.0))]);
         mesh_object.replace_gpu_data();
 
-        let model_tf = Mat4::IDENTITY
-            * Mat4::from_rotation_x(std::f32::consts::PI)
-            // * Mat4::from_translation(vec3(0.0, 0.0, 0.5))
-            * Mat4::from_scale(Vec3::splat(0.1));
-
-        self.persistent = Some(PersistentState {
-            mesh_object,
-            model_tf,
-        });
+        self.persistent = Some(PersistentState { mesh_object });
 
         Ok(())
     }
@@ -87,10 +70,9 @@ impl simple_start::Drawable for LocalState {
         // let index_buffer = &persistent.gpu_mesh.index_buffer;
 
         let camera_world_position = state.camera.camera.eye.into();
-        let our_uniform = OurUniform {
+        let our_uniform = simple_start::view::ViewUniform {
             view_proj: state.camera.to_view_matrix(),
             camera_world_position,
-            model_tf: persistent.model_tf,
         };
         // warn!("our_uniform: {our_uniform:?}");
 
@@ -190,7 +172,13 @@ impl simple_start::Drawable for LocalState {
             rgba_format: texture_format,
             depth_format: DEPTH_FORMAT,
         };
-        let material = simple_start::render::PhongLikeMaterial::new(&state.context, &config);
+        let material = simple_start::render::PhongLikeMaterial::new(
+            &state.context,
+            &config,
+            simple_start::vertex::mesh_object::MeshObject::retrieve_embedded_shader(
+                &state.context.device,
+            ),
+        );
         let render_pipeline = material.render_pipeline;
 
         let view = destination.get_view();

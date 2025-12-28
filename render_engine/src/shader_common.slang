@@ -9,7 +9,7 @@ struct CameraUniform {
     float3 camera_world_position;
 };
 [[vk::binding(CAMERA_UNIFORM_BINDING, CAMERA_UNIFORM_SET)]]
-ConstantBuffer<CameraUniform> camera_uniform;
+StructuredBuffer<CameraUniform> camera_uniform;
 #endif
 
 
@@ -20,3 +20,10 @@ struct CommonVertexOutput {
     float3 view_vector;
     float3 world_pos;
 };
+
+static const float4x4 identity_float4x4 = float4x4(
+    float4(1.0, 0.0, 0.0, 0.0),
+    float4(0.0, 1.0, 0.0, 0.0),
+    float4(0.0, 0.0, 1.0, 0.0),
+    float4(0.0, 0.0, 0.0, 1.0)
+);

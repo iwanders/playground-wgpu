@@ -15,10 +15,10 @@ struct MeshObjectMetaUniform {
     uint normal_present;
 };
 [[vk::binding(MESH_OBJECT_UNIFORM_BINDING, MESH_OBJECT_SET)]]
-ConstantBuffer<MeshObjectMetaUniform> mesh_object_uniform;
+StructuredBuffer<MeshObjectMetaUniform> mesh_object_uniform;
 
 
-[[vk::binding(MESH_OBJECT_UNIFORM_BINDING, MESH_OBJECT_INSTANCES_BINDING)]]
+[[vk::binding(MESH_OBJECT_INSTANCES_BINDING, MESH_OBJECT_SET)]]
 StructuredBuffer<float4x4> mesh_object_instances;
 
 
@@ -41,7 +41,10 @@ CommonVertexOutput vertexMain(VertexInput in)
     CommonVertexOutput out;
 
     let model_matrix = mesh_object_instances[in.instanceID];
+    // let model_matrix= identity_float4x4;
     let world_position = mul(model_matrix , float4(in.position, 1.0));
+    let mesh_object_uniform= mesh_object_uniform[0];
+    let camera_uniform = camera_uniform[0];
     out.color = float3(1.0, 1.0, 1.0);
     if (mesh_object_uniform.color_present > 0) {
         out.color = vertex_color[in.vertexID].xyz;

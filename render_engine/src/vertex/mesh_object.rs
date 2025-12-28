@@ -5,6 +5,7 @@ use wgpu::util::DeviceExt as _;
 use zerocopy::{Immutable, IntoBytes};
 
 pub const MESH_OBJECT_SLANG: &str = include_str!("mesh_object.slang");
+pub const MESH_OBJECT_SPIRV: &[u8] = include_bytes!("mesh_object.spv");
 
 /// Something that owns a gpu mesh and generates vertices from it at the vertex stage
 pub struct MeshObject {
@@ -108,11 +109,13 @@ impl MeshObject {
 
     /// This replaces the current gpu data with a fresh buffer that holds the updated instance values.
     pub fn replace_gpu_data(&mut self) {
+        println!("self.instances: {:?}", self.instances);
+
         let instances_buffer =
             self.context
                 .device
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: None,
+                    label: Some(&self.gpu_mesh.name),
                     contents: self.instances.as_bytes(),
                     usage: wgpu::BufferUsages::STORAGE,
                 });
@@ -163,6 +166,27 @@ impl MeshObject {
             0..self.instances.len() as u32,
         );
         render_pass.pop_debug_group();
+    }
+
+    pub fn retrieve_embedded_shader(device: &wgpu::Device) -> super::VertexCreaterShader {
+        let config = wgpu::ShaderModuleDescriptorPassthrough {
+            label: Some("mesh_object.spv"),
+            // spirv: None,
+            spirv: Some(wgpu::util::make_spirv_raw(MESH_OBJECT_SPIRV)),
+            entry_point: "".to_owned(),
+            // This is unused for SPIR-V
+            num_workgroups: (0, 0, 0),
+            runtime_checks: wgpu::ShaderRuntimeChecks::unchecked(),
+            dxil: None,
+            msl: None,
+            hlsl: None,
+            glsl: None,
+            wgsl: None,
+        };
+        super::VertexCreaterShader::new(
+            unsafe { device.create_shader_module_passthrough(config) },
+            "main",
+        )
     }
 
     pub const MESH_OBJECT_SET: u32 = 2;
@@ -231,3 +255,5 @@ impl MeshObject {
         }
     }
 }
+
+crate::static_assert_size!(Mat4, 4 * 4 * 4);

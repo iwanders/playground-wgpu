@@ -122,8 +122,12 @@ pub struct PhongLikeMaterial {
 }
 
 impl PhongLikeMaterial {
-    pub fn new(context: &crate::Context, config: &PhongLikeMaterialConfig) -> Self {
-        let render_pipeline = Self::generate_pipeline(context, config, None);
+    pub fn new(
+        context: &crate::Context,
+        config: &PhongLikeMaterialConfig,
+        vertex_source: crate::vertex::VertexCreaterShader,
+    ) -> Self {
+        let render_pipeline = Self::generate_pipeline(context, config, vertex_source);
         PhongLikeMaterial { render_pipeline }
     }
 
@@ -148,10 +152,10 @@ impl PhongLikeMaterial {
     fn generate_pipeline(
         context: &crate::Context,
         config: &PhongLikeMaterialConfig,
-        shader: Option<wgpu::ShaderModule>,
+        vertex_source: crate::vertex::VertexCreaterShader,
     ) -> wgpu::RenderPipeline {
         let device = &context.device;
-        let shader = shader.unwrap_or_else(|| Self::retrieve_embedded_shader(device));
+        let fragment_shader = Self::retrieve_embedded_shader(device);
 
         let mesh_layout =
             device.create_bind_group_layout(&crate::vertex::mesh_object::MeshObject::MESH_LAYOUT);
@@ -182,16 +186,16 @@ impl PhongLikeMaterial {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vertexMain"),
+                module: &vertex_source.shader_module,
+                entry_point: Some(&vertex_source.entry),
                 // buffers: &[],
                 buffers: &[crate::vertex::mesh::GpuMesh::get_vertex_layout()],
                 // compilation_options: Default::default(),
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fragmentMain"),
+                module: &fragment_shader,
+                entry_point: Some("main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.rgba_format,
                     blend: Some(wgpu::BlendState {
