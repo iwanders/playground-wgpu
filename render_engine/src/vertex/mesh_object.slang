@@ -41,7 +41,6 @@ CommonVertexOutput vertexMain(VertexInput in)
     CommonVertexOutput out;
 
     let model_matrix = mesh_object_instances[in.instanceID];
-    // let model_matrix= identity_float4x4;
     let world_position = mul(model_matrix , float4(in.position, 1.0));
     let mesh_object_uniform= mesh_object_uniform[0];
     let camera_uniform = camera_uniform[0];

@@ -138,29 +138,7 @@ pub struct GpuLights {
 #[cfg(test)]
 mod test {
     use super::*;
-    // First arg is https://docs.rs/naga/latest/naga/ir/struct.StructMember.html
-    #[macro_export]
-    macro_rules! verify_field {
-        ($Container:ty, $field:expr, $members:expr) => {
-            let mut found: bool = false;
-            for member in $members.iter() {
-                let name = std::stringify!($field);
-                if member.name.as_ref().map(|v| v.as_str()) == Some(name) {
-                    let rust_offset = std::mem::offset_of!($Container, $field) as u32;
-                    // Verify the offset.
-                    assert_eq!(
-                        member.offset, rust_offset,
-                        "offset of member {} does not match rust; {}, wgsl: {}",
-                        name, rust_offset, member.offset
-                    );
-                    found = true;
-                }
-            }
-            if !found {
-                assert!(false, "could not find member {}", std::stringify!($field));
-            }
-        };
-    }
+    use crate::verify_field;
 
     #[test]
     fn test_light_struct_align() {

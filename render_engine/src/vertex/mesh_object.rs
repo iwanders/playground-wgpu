@@ -33,7 +33,6 @@ pub struct MeshObject {
 pub struct MeshObjectMetaUniform {
     pub color_present: u32,
     pub normal_present: u32,
-    pub _pad: [u8; 4],
 }
 
 impl MeshObject {
@@ -49,7 +48,6 @@ impl MeshObject {
         let mesh_object_uniform = MeshObjectMetaUniform {
             color_present: gpu_mesh.color_present as u32,
             normal_present: gpu_mesh.normal_present as u32,
-            _pad: Default::default(),
         };
         let mesh_object_uniform =
             context
@@ -109,8 +107,6 @@ impl MeshObject {
 
     /// This replaces the current gpu data with a fresh buffer that holds the updated instance values.
     pub fn replace_gpu_data(&mut self) {
-        println!("self.instances: {:?}", self.instances);
-
         let instances_buffer =
             self.context
                 .device
@@ -257,3 +253,39 @@ impl MeshObject {
 }
 
 crate::static_assert_size!(Mat4, 4 * 4 * 4);
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::verify_field;
+
+    #[test]
+    fn test_light_struct_align() {
+        let module = naga::front::wgsl::parse_str(
+            " struct MeshObjectMetaUniform {
+            color_present: u32,
+            normal_present: u32,
+        };
+        ",
+        )
+        .unwrap();
+
+        let our_struct_type = module
+            .types
+            .iter()
+            .find(|z| z.1.name.as_ref().map(|v| v.as_str()) == Some("MeshObjectMetaUniform"))
+            .unwrap();
+        if let naga::ir::TypeInner::Struct { members, span } = &our_struct_type.1.inner {
+            verify_field!(MeshObjectMetaUniform, color_present, members);
+            verify_field!(MeshObjectMetaUniform, normal_present, members);
+            assert_eq!(
+                std::mem::size_of::<MeshObjectMetaUniform>() as u32,
+                *span,
+                "Rust struct size does not match expected wgsl length: {}",
+                *span
+            );
+        } else {
+            panic!("Incorrect type found");
+        };
+    }
+}

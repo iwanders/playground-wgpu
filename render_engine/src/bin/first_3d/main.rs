@@ -49,6 +49,19 @@ impl simple_start::Drawable for LocalState {
             simple_start::vertex::mesh_object::MeshObject::new(state.context.clone(), gpu_mesh);
         mesh_object.set_single_transform(&Mat4::IDENTITY);
         mesh_object.set_transforms(&[Mat4::IDENTITY, Mat4::from_translation(vec3(1.5, 0.0, 0.0))]);
+        let mut many_transforms = vec![];
+        for x in 0..100 {
+            for y in 0..100 {
+                for z in 0..100 {
+                    many_transforms.push(Mat4::from_translation(vec3(
+                        x as f32 * 1.5,
+                        y as f32 * 1.5,
+                        z as f32 * 1.5,
+                    )));
+                }
+            }
+        }
+        // mesh_object.set_transforms(&many_transforms);
         mesh_object.replace_gpu_data();
 
         self.persistent = Some(PersistentState { mesh_object });
