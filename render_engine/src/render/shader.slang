@@ -16,56 +16,13 @@ https://github.com/shader-slang/slang/tree/master/examples/gpu-printing#gpu-prin
 
     StructuredBuffer stride is 16?
 */
-
+#define REQUIRES_CAMERA_UNIFORM 1
+#define REQUIRES_LIGHT_UNIFORM 1
 #include "../shader_common.slang"
 
-enum LightType
-{
-    LIGHT_TYPE_OFF = 0,
-    LIGHT_TYPE_DIRECTIONAL = 1,
-    LIGHT_TYPE_OMNI = 2,
-    LIGHT_TYPE_AMBIENT = 3,
-};
-
-
-struct Light {
-    float3 position;
-    float3 direction;
-    float3 color;
-    float intensity;
-    LightType light_type;
-    // hardness_kd_ks: vec3f,
-
-    float3 light_direction(float3 at_point)
-    {
-        switch (light_type) {
-            case LightType::LIGHT_TYPE_DIRECTIONAL: {
-                return direction;
-            }
-            case LightType::LIGHT_TYPE_OMNI: {
-                let difference = position - at_point;
-                return normalize(difference);
-            }
-            default: {
-                return float3(0.0, 0.0, 0.0);
-            }
-        }
-    }
-};
-struct LightUniform {
-    Light lights[];
-};
-[[vk::binding(0, 1)]]
-StructuredBuffer<Light> light_uniform;
-
-
 // Output of the fragment shader
-struct Fragment
-{
-    float4 color;
-};
 [shader("fragment")]
-Fragment fragmentMain( CommonVertexOutput in) : SV_Target
+CommonFragmentOutput fragmentMain( CommonVertexOutput in) : SV_Target
 {
     let N = normalize(in.normal);
    	let V = normalize(in.view_vector);
@@ -105,7 +62,7 @@ Fragment fragmentMain( CommonVertexOutput in) : SV_Target
    	// Gamma-correction
    	let corrected_color= color;
    	// let corrected_color = pow(color, vec3f(2.2));
-    Fragment output;
+    CommonFragmentOutput output;
     output.color = float4(corrected_color, 1.0);
     // output.color.x = 0;
    	return output;

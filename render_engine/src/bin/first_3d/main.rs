@@ -202,7 +202,11 @@ impl simple_start::Drawable for LocalState {
                 .add_commands(device, &mut render_pass);
             // .render_pass
             // .set_bind_group(0, &camera_bind_group, &[]);
-            render_pass.set_bind_group(1, &light_bind_group, &[]);
+            render_pass.set_bind_group(
+                simple_start::lights::CpuLights::LIGHT_SET,
+                &light_bind_group,
+                &[],
+            );
 
             // Object properties.
             persistent.mesh_object.add_commands(&mut render_pass);

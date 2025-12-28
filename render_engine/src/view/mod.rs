@@ -14,11 +14,11 @@ pub struct ViewUniform {
 
 impl ViewUniform {
     pub const VIEW_UNIFORM_SET: u32 = 0;
-    pub const VIEW_UNIFORM_BINDING: u32 = 0;
+    // pub const VIEW_UNIFORM_BINDING: u32 = 0;
     pub const fn bind_group_layout() -> wgpu::BindGroupLayoutDescriptor<'static> {
         wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
-                binding: Self::VIEW_UNIFORM_BINDING,
+                binding: Self::VIEW_UNIFORM_SET,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -40,7 +40,7 @@ impl ViewUniform {
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &camera_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
-                binding: Self::VIEW_UNIFORM_BINDING,
+                binding: Self::VIEW_UNIFORM_SET,
                 resource: camera_buffer.as_entire_binding(),
             }],
             label: Some("camera_bind_group"),
