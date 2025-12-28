@@ -3,34 +3,43 @@
 // against the rust side.
 //
 // Overengineered? Absolutely.
-
-pub const SLANG_SIZE_CHECK_SPIRV: &[u8] = include_bytes!("slang_size_check.spv");
-
-pub fn retrieve_embedded_shader(device: &wgpu::Device) -> wgpu::ShaderModule {
-    let config = wgpu::ShaderModuleDescriptorPassthrough {
-        label: Some("mesh_object.spv"),
-        // spirv: None,
-        spirv: Some(wgpu::util::make_spirv_raw(SLANG_SIZE_CHECK_SPIRV)),
-        entry_point: "".to_owned(),
-        // This is unused for SPIR-V
-        num_workgroups: (0, 0, 0),
-        runtime_checks: wgpu::ShaderRuntimeChecks::unchecked(),
-        dxil: None,
-        msl: None,
-        hlsl: None,
-        glsl: None,
-        wgsl: None,
-    };
-    unsafe { device.create_shader_module_passthrough(config) }
-}
 #[cfg(test)]
 mod test {
-    use wgpu::util::DeviceExt as _;
+    use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
 
-    use super::*;
+    pub const SLANG_SIZE_CHECK_SPIRV: &[u8] = include_bytes!("slang_size_check.spv");
 
-    #[test]
-    fn test_reflection() {
+    pub fn retrieve_embedded_shader(device: &wgpu::Device) -> wgpu::ShaderModule {
+        let config = wgpu::ShaderModuleDescriptorPassthrough {
+            label: Some("slang_size_check.spv"),
+            // spirv: None,
+            spirv: Some(wgpu::util::make_spirv_raw(SLANG_SIZE_CHECK_SPIRV)),
+            entry_point: "".to_owned(),
+            // This is unused for SPIR-V
+            num_workgroups: (0, 0, 0),
+            runtime_checks: wgpu::ShaderRuntimeChecks::unchecked(),
+            dxil: None,
+            msl: None,
+            hlsl: None,
+            glsl: None,
+            wgsl: None,
+        };
+        unsafe { device.create_shader_module_passthrough(config) }
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct FieldInfo {
+        pub struct_name: String,
+        pub struct_size: u32,
+        pub field_size: u32,
+        pub field_offset: u32,
+        pub field_name: String,
+    }
+
+    pub fn size_check_retrieve_struct_field_info(
+        struct_name: &str,
+        field_name: &str,
+    ) -> Result<FieldInfo, anyhow::Error> {
         let crate::context::ContextReturn { context, target } =
             pollster::block_on(crate::Context::new_sized(1, 1)).unwrap();
 
@@ -87,11 +96,14 @@ mod test {
 
         let cs_module = retrieve_embedded_shader(device);
 
+        // Note no undercore between the two fields.
+        let entry_point = format!("introspecter_{}{}", struct_name, field_name);
+        // println!("entry_point: {entry_point:?}");
         let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Compute Pipeline"),
             layout: Some(&pipeline_layout),
             module: &cs_module,
-            entry_point: Some("introspecter_CameraUniformcamera_world_position"),
+            entry_point: Some(&entry_point),
             compilation_options: Default::default(),
             cache: None,
         });
@@ -115,19 +127,73 @@ mod test {
 
         context.queue.submit(Some(encoder.finish()));
 
-        println!("trying to retrieve, we map the red aback bbuffer");
+        // println!("trying to retrieve, we map the red aback bbuffer");
         let slice = read_back_buffer.slice(..);
         slice.map_async(wgpu::MapMode::Read, |_| {});
         device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
 
-        println!("And then read the value into a cpu vector.");
+        // println!("And then read the value into a cpu vector.");
         let mut data = Vec::new();
         let slice = read_back_buffer.slice(..);
         let mapped = slice.get_mapped_range();
         data.extend_from_slice(&mapped);
         drop(mapped);
-        // buffer.unmap();
 
-        println!("result: {data:?}");
+        // result[0] = sizeof(A);\
+        // result[1] = sizeof(our_instance.B);\
+        // result[2] = uint64_t(uint64_t(&our_instance.B) - uint64_t(&our_instance));\
+
+        #[derive(IntoBytes, Immutable, FromBytes, KnownLayout, Debug, Clone, Copy)]
+        #[repr(C, packed)]
+        struct ResponseData {
+            struct_size: u32,
+            field_size: u32,
+            field_offset: u32,
+        }
+
+        let (resp, _) = ResponseData::try_read_from_prefix(&data)
+            .map_err(|_| anyhow::format_err!("ref_from_bytes failed"))?;
+
+        Ok(FieldInfo {
+            struct_name: struct_name.to_owned(),
+            struct_size: resp.struct_size,
+            field_size: resp.field_size,
+            field_offset: resp.field_offset,
+            field_name: field_name.to_owned(),
+        })
+    }
+
+    fn get_size_of_return_type<F, T, U>(_f: F) -> usize
+    where
+        F: FnOnce(T) -> U,
+    {
+        std::mem::size_of::<U>()
+    }
+    macro_rules! check_struct {
+        ($ty:ty, $( $e:ident ),*) => {
+            $(
+                let field_info = size_check_retrieve_struct_field_info(stringify!($ty), stringify!($e)).unwrap();
+                assert_eq!(field_info.struct_name, stringify!($ty));
+                assert_eq!(field_info.field_name, stringify!($e));
+                assert_eq!(
+                    field_info.field_offset,
+                    std::mem::offset_of!($ty, $e) as u32
+                );
+                assert_eq!(
+                    field_info.struct_size,
+                    std::mem::size_of::<$ty>() as u32
+                );
+                assert_eq!(
+                    field_info.field_size,
+                    get_size_of_return_type((|s: $ty| s.$e)) as u32
+                );
+            )*
+        };
+    }
+
+    #[test]
+    fn test_view_uniform_size() {
+        use crate::view::ViewUniform;
+        check_struct!(ViewUniform, view_proj, camera_world_position);
     }
 }

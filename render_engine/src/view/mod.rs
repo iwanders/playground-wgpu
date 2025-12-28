@@ -1,6 +1,6 @@
 pub mod camera;
 pub mod orbit;
-use glam::{Mat4, Vec3A};
+use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt as _;
 use zerocopy::{Immutable, IntoBytes};
 
@@ -8,7 +8,8 @@ use zerocopy::{Immutable, IntoBytes};
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
 pub struct ViewUniform {
     pub view_proj: Mat4,
-    pub camera_world_position: Vec3A,
+    pub camera_world_position: Vec3,
+    pub _pad: [u32; 1],
 }
 
 impl ViewUniform {
@@ -56,6 +57,7 @@ pub trait CameraView {
         ViewUniform {
             view_proj,
             camera_world_position,
+            _pad: Default::default(),
         }
     }
 }

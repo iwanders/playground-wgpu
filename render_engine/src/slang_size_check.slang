@@ -4,7 +4,7 @@
 
 RWStructuredBuffer<uint32_t> result;
 
-#define genmain(NAME, A, B)  \
+#define generate_introspecter_impl(NAME, A, B)  \
 [shader("compute")] \
 [numthreads(1,1,1)] \
 void introspecter_##NAME(uint3 threadId : SV_DispatchThreadID)\
@@ -14,16 +14,13 @@ void introspecter_##NAME(uint3 threadId : SV_DispatchThreadID)\
     result[1] = sizeof(our_instance.B);\
     result[2] = uint64_t(uint64_t(&our_instance.B) - uint64_t(&our_instance));\
 }
-// #define CONCAT(A, B) A##B
-// #define PPCAT(A, B) CONCAT(A, B) // Force expansion of arguments before concatenation
 
 
-#define genmain_dispatch(C, A, B)\
-    genmain(C, A, B)
 
-#define genmain_entry(A, B)\
-    genmain_dispatch(A##B, A, B)
+#define generate_introspecter(A, B)\
+    generate_introspecter_impl(A##B, A, B)
 
-
-genmain_entry(CameraUniform, view_proj)
-genmain_entry(CameraUniform, camera_world_position)
+// This was the ONLY way I could figure out how to 'exfiltrate' the 'view_proj' segment in a way that ends up in the
+// spv file AND is locked into using the correct field name and location.
+generate_introspecter(ViewUniform, view_proj)
+generate_introspecter(ViewUniform, camera_world_position)
