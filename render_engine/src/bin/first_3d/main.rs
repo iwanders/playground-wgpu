@@ -19,8 +19,8 @@ use gltf;
 //
 //
 
+use simple_start::vertex::mesh_object::MeshObject;
 use zerocopy::{Immutable, IntoBytes};
-
 #[repr(C)]
 // This is so we can store this in a buffer
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
@@ -31,7 +31,7 @@ pub struct OurUniform {
 }
 
 struct PersistentState {
-    gpu_mesh: simple_start::mesh::GpuMesh,
+    mesh_object: MeshObject,
     model_tf: Mat4,
 }
 struct LocalState {
@@ -54,13 +54,21 @@ impl simple_start::Drawable for LocalState {
         let cpu_mesh = simple_start::loader::load_gltf(document, &buffers, 0);
 
         let gpu_mesh = cpu_mesh.to_gpu(&state.context);
+        let mut mesh_object =
+            simple_start::vertex::mesh_object::MeshObject::new(state.context.clone(), gpu_mesh);
+        mesh_object.set_single_transform(&Mat4::IDENTITY);
+        mesh_object.set_transforms(&[Mat4::IDENTITY, Mat4::from_rotation_x(3.0)]);
+        mesh_object.replace_gpu_data();
 
         let model_tf = Mat4::IDENTITY
             * Mat4::from_rotation_x(std::f32::consts::PI)
             // * Mat4::from_translation(vec3(0.0, 0.0, 0.5))
             * Mat4::from_scale(Vec3::splat(0.1));
 
-        self.persistent = Some(PersistentState { gpu_mesh, model_tf });
+        self.persistent = Some(PersistentState {
+            mesh_object,
+            model_tf,
+        });
 
         Ok(())
     }
@@ -75,8 +83,8 @@ impl simple_start::Drawable for LocalState {
         let device = &state.context.device;
         // Something something... fragment shader... set colors? >_<
         let persistent = self.persistent.as_ref().unwrap();
-        let vertex_buffer = &persistent.gpu_mesh.vertex_buffer;
-        let index_buffer = &persistent.gpu_mesh.index_buffer;
+        // let vertex_buffer = &persistent.gpu_mesh.vertex_buffer;
+        // let index_buffer = &persistent.gpu_mesh.index_buffer;
 
         let camera_world_position = state.camera.camera.eye.into();
         let our_uniform = OurUniform {
@@ -148,7 +156,7 @@ impl simple_start::Drawable for LocalState {
 
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let num_indices = persistent.gpu_mesh.index_length;
+        // let num_indices = persistent.gpu_mesh.index_length;
 
         // let texture_format = state.target.get_texture_format()?;
         let texture_format = destination.get_texture_format();
@@ -227,11 +235,12 @@ impl simple_start::Drawable for LocalState {
             render_pass.set_bind_group(1, &light_bind_group, &[]);
 
             // Object properties.
-            render_pass.set_bind_group(2, &persistent.gpu_mesh.bind_group, &[]);
-            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-            render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            render_pass.draw_indexed(0..num_indices, 0, 0..1);
-            render_pass.pop_debug_group();
+            persistent.mesh_object.add_commands(&mut render_pass);
+            // render_pass.set_bind_group(2, &persistent.gpu_mesh.bind_group, &[]);
+            // render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+            // render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            // render_pass.draw_indexed(0..num_indices, 0, 0..1);
+            // render_pass.pop_debug_group();
         }
 
         // state

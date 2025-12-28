@@ -1,4 +1,4 @@
-use crate::mesh::CpuMesh;
+use crate::vertex::mesh::CpuMesh;
 use glam::{Vec2, Vec3, Vec3A, Vec4, vec2, vec3, vec3a, vec4};
 
 pub fn load_gltf(

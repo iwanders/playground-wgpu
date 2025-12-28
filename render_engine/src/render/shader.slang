@@ -9,12 +9,13 @@ Similar to binding layout qualifier in Vulkan. It specifies the uniform buffer b
 Set/Group: A collection of related bindings.
 
 
+
 https://github.com/shader-slang/slang/tree/master/examples/gpu-printing#gpu-printing
+
 
 
     StructuredBuffer stride is 16?
 */
-
 enum LightType
 {
     LIGHT_TYPE_OFF = 0,

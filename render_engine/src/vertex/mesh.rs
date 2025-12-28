@@ -45,7 +45,7 @@ impl CpuMesh {
         self
     }
 
-    fn get_name_prefix(&self) -> String {
+    pub fn get_name_prefix(&self) -> String {
         let name_prefix = if let Some(name) = self.name.as_ref() {
             format!("{}", name)
         } else {
@@ -60,12 +60,14 @@ impl CpuMesh {
 
     /// Create the gpu mesh, which is independent of the CPU Mesh.
     pub fn to_gpu(&self, context: &crate::Context) -> GpuMesh {
+        // https://www.w3.org/TR/webgpu/#minimum-buffer-binding-size
+
         let name_prefix = self.get_name_prefix();
 
         // We can locally create this, and use it for the layout, it doesn't need to be the exact same instance.
         let layout = context
             .device
-            .create_bind_group_layout(&crate::mesh::GpuMesh::MESH_LAYOUT);
+            .create_bind_group_layout(&crate::vertex::mesh::GpuMesh::MESH_LAYOUT);
 
         let vertex_buffer = context
             .device
@@ -83,7 +85,11 @@ impl CpuMesh {
             });
         let index_length = self.index.len() as u32;
 
-        let normal_data = self.normal.as_ref().map(|z| z.as_bytes()).unwrap_or(&[]);
+        let normal_data = self
+            .normal
+            .as_ref()
+            .map(|z| z.as_bytes())
+            .unwrap_or([Vec3A::ZERO].as_bytes());
         let normal_buffer = context
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -92,7 +98,11 @@ impl CpuMesh {
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
-        let color_data = self.color.as_ref().map(|z| z.as_bytes()).unwrap_or(&[]);
+        let color_data = self
+            .color
+            .as_ref()
+            .map(|z| z.as_bytes())
+            .unwrap_or([Vec3A::ZERO].as_bytes());
         let color_buffer = context
             .device
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -122,11 +132,14 @@ impl CpuMesh {
         }
 
         GpuMesh {
+            name: name_prefix,
             vertex_buffer,
             index_buffer,
             index_length,
             normal_buffer,
+            normal_present: self.normal.is_some(),
             color_buffer,
+            color_present: self.color.is_some(),
             bind_group,
         }
     }
@@ -135,6 +148,7 @@ impl CpuMesh {
 /// Representation of a mesh on the gpu side, not tied to the CpuMesh.
 #[derive(Clone, Debug)]
 pub struct GpuMesh {
+    pub name: String,
     /// The bindgroup that contains all the buffers.
     pub bind_group: wgpu::BindGroup,
 
@@ -147,7 +161,9 @@ pub struct GpuMesh {
 
     //--- Optionals below, if they are unused, they are zero length, but still bound.
     pub normal_buffer: wgpu::Buffer,
+    pub normal_present: bool,
     pub color_buffer: wgpu::Buffer,
+    pub color_present: bool,
 }
 
 impl GpuMesh {

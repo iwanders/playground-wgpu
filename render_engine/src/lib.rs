@@ -7,6 +7,9 @@
 
    https://github.com/gfx-rs/wgpu/issues/6273
 
+   But why...
+   https://www.w3.org/TR/webgpu/#minimum-buffer-binding-size
+
 */
 use anyhow::Context as WithContext;
 use glam::{Mat4, Vec3, vec3};
@@ -20,10 +23,11 @@ use zerocopy::{Immutable, IntoBytes};
 pub mod context;
 pub mod lights;
 
-pub mod mesh;
 pub mod render;
 pub mod target;
 pub mod view;
+
+pub mod vertex;
 
 pub mod loader;
 pub mod wgpu_util;

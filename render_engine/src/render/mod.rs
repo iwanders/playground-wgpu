@@ -153,7 +153,8 @@ impl PhongLikeMaterial {
         let device = &context.device;
         let shader = shader.unwrap_or_else(|| Self::retrieve_embedded_shader(device));
 
-        let mesh_layout = device.create_bind_group_layout(&crate::mesh::GpuMesh::MESH_LAYOUT);
+        let mesh_layout =
+            device.create_bind_group_layout(&crate::vertex::mesh_object::MeshObject::MESH_LAYOUT);
         let camera_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
@@ -184,7 +185,8 @@ impl PhongLikeMaterial {
                 module: &shader,
                 entry_point: Some("vertexMain"),
                 // buffers: &[],
-                buffers: &[crate::mesh::GpuMesh::get_vertex_layout()],
+                buffers: &[crate::vertex::mesh::GpuMesh::get_vertex_layout()],
+                // compilation_options: Default::default(),
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {

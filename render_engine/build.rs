@@ -12,6 +12,9 @@ fn main() {
             let path = entry.path();
             if path.is_file() {
                 let filename = path.file_name().unwrap().to_str().unwrap();
+                if filename == "shader_common.slang" {
+                    continue;
+                }
                 if filename.ends_with(".slang") {
                     files.push(path.to_string_lossy().to_string());
                 }
