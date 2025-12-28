@@ -24,6 +24,8 @@ use zerocopy::{Immutable, IntoBytes};
 
 struct PersistentState {
     mesh_object: MeshObject,
+    depth_format: wgpu::TextureFormat,
+    material: Option<simple_start::render::PhongLikeMaterial>,
 }
 struct LocalState {
     persistent: Option<PersistentState>,
@@ -62,9 +64,14 @@ impl simple_start::Drawable for LocalState {
             }
         }
         // mesh_object.set_transforms(&many_transforms);
-        mesh_object.replace_gpu_data();
 
-        self.persistent = Some(PersistentState { mesh_object });
+        pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
+        mesh_object.replace_gpu_data();
+        self.persistent = Some(PersistentState {
+            mesh_object,
+            material: None,
+            depth_format: DEPTH_FORMAT,
+        });
 
         Ok(())
     }
@@ -78,7 +85,7 @@ impl simple_start::Drawable for LocalState {
 
         let device = &state.context.device;
         // Something something... fragment shader... set colors? >_<
-        let persistent = self.persistent.as_ref().unwrap();
+        let persistent = self.persistent.as_mut().unwrap();
         // let vertex_buffer = &persistent.gpu_mesh.vertex_buffer;
         // let index_buffer = &persistent.gpu_mesh.index_buffer;
 
@@ -114,8 +121,6 @@ impl simple_start::Drawable for LocalState {
         let height = destination.height();
         state.camera.camera.aspect = width as f32 / height as f32;
 
-        pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
-
         let depth_size = wgpu::Extent3d {
             // 2.
             width: width.max(1),
@@ -128,7 +133,7 @@ impl simple_start::Drawable for LocalState {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: DEPTH_FORMAT,
+            format: persistent.depth_format,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT // 3.
                 | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
@@ -142,20 +147,25 @@ impl simple_start::Drawable for LocalState {
         // let texture_format = state.target.get_texture_format()?;
         let texture_format = destination.get_texture_format();
 
-        let light_bind_group = gpu_lights.light_bind_group;
+        // pub const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb; // 1.
+        // pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
 
-        let config = simple_start::render::PhongLikeMaterialConfig {
-            rgba_format: texture_format,
-            depth_format: DEPTH_FORMAT,
-        };
-        let material = simple_start::render::PhongLikeMaterial::new(
-            &state.context,
-            &config,
-            simple_start::vertex::mesh_object::MeshObject::retrieve_embedded_shader(
-                &state.context.device,
-            ),
-        );
-        let render_pipeline = material.render_pipeline;
+        let material = persistent.material.get_or_insert_with(|| {
+            let config = simple_start::render::PhongLikeMaterialConfig {
+                rgba_format: texture_format,
+                depth_format: persistent.depth_format,
+            };
+
+            simple_start::render::PhongLikeMaterial::new(
+                &state.context,
+                &config,
+                simple_start::vertex::mesh_object::MeshObject::retrieve_embedded_shader(
+                    &state.context.device,
+                ),
+            )
+        });
+
+        let light_bind_group = gpu_lights.light_bind_group;
 
         let view = destination.get_view();
 
@@ -192,7 +202,7 @@ impl simple_start::Drawable for LocalState {
             };
             let mut render_pass = encoder.begin_render_pass(&render_pass_desc);
             // Setup
-            render_pass.set_pipeline(&render_pipeline);
+            render_pass.set_pipeline(&material.render_pipeline);
             state
                 .camera
                 .to_camera_uniform()
