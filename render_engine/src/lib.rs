@@ -28,6 +28,7 @@ pub mod view;
 pub mod vertex;
 
 pub mod loader;
+pub mod slang_util;
 pub mod wgpu_util;
 
 use context::Context;

@@ -1,5 +1,5 @@
 // This holds some 'owned' versions of the wgpu structs.
-// Not sure if this is actually... useful.
+// Not sure if this is actually... useful... many of them aren't actually used.
 
 #[derive(Debug, Clone)]
 pub struct BindGroupLayoutDescriptorOwned {

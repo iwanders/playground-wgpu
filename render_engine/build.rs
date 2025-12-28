@@ -1,6 +1,7 @@
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
     println!("cargo::rerun-if-changed=src/render/");
+    println!("cargo::rerun-if-changed=src/vertex/");
 
     let src_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let mut slang_files = Vec::new();
@@ -35,6 +36,7 @@ fn main() {
         // let spv_file_basename = path_as_spv.file_stem().unwrap().to_string_lossy();
         let output = std::process::Command::new("slangc")
             .arg(&file_path)
+            // .arg("-fvk-use-c-layout")  ... :/
             .arg("-o")
             .arg(&path_as_spv)
             .output()
