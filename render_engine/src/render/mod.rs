@@ -111,6 +111,8 @@ impl Renderer {
     }
 }*/
 
+pub mod mesh_object_textured;
+
 pub struct PhongLikeMaterialConfig {
     pub rgba_format: wgpu::TextureFormat,
     pub depth_format: wgpu::TextureFormat,

@@ -1,4 +1,4 @@
-use glam::{Mat4, vec3};
+use glam::{Mat4, Vec3, vec3};
 use log::*;
 use simple_start::{State, view::CameraView};
 
@@ -39,16 +39,21 @@ impl simple_start::Drawable for LocalState {
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         // let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
-        let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb");
-        let (document, buffers, _images) = gltf::import(gltf_path)?;
+
+        let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
+        let (document, buffers, images) = gltf::import(gltf_path)?;
         info!("document: {document:#?}");
+        let textures: Vec<wgpu::Texture> = images
+            .iter()
+            .map(|z| simple_start::loader::load_gltf_texture(&state.context, z))
+            .collect();
         let cpu_mesh = simple_start::loader::load_gltf(document, &buffers, 0);
 
         let gpu_mesh = cpu_mesh.to_gpu(&state.context);
         let mut mesh_object =
             simple_start::vertex::mesh_object::MeshObject::new(state.context.clone(), gpu_mesh);
-        mesh_object.set_single_transform(&Mat4::IDENTITY);
-        mesh_object.set_transforms(&[Mat4::IDENTITY, Mat4::from_translation(vec3(1.5, 0.0, 0.0))]);
+        mesh_object.set_single_transform(&Mat4::from_scale(Vec3::splat(0.2)));
+        // mesh_object.set_transforms(&[Mat4::IDENTITY, Mat4::from_translation(vec3(1.5, 0.0, 0.0))]);
         let mut many_transforms = vec![];
         for x in 0..100 {
             for y in 0..100 {
@@ -236,8 +241,8 @@ async fn async_main() -> std::result::Result<(), anyhow::Error> {
         let drawable = LocalState::new();
         simple_start::async_render(drawable, 1024, 768, "/tmp/first_3d.png").await?;
     }
-    let drawable = LocalState::new();
-    simple_start::async_main(drawable).await?;
+    // let drawable = LocalState::new();
+    // simple_start::async_main(drawable).await?;
 
     Ok(())
 }

@@ -90,3 +90,73 @@ pub fn load_gltf(
     res.name = name;
     res
 }
+
+fn gltf_to_rgba8unorm(image: &gltf::image::Data) -> image::RgbaImage {
+    match &image.format {
+        gltf::image::Format::R8 => todo!(),
+        gltf::image::Format::R8G8 => todo!(),
+        gltf::image::Format::R8G8B8 => {
+            let orig = image::ImageBuffer::<image::Rgb<u8>, _>::from_raw(
+                image.width,
+                image.height,
+                image.pixels.clone(),
+            )
+            .unwrap();
+            image::DynamicImage::ImageRgb8(orig).to_rgba8()
+        }
+        gltf::image::Format::R8G8B8A8 => image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(
+            image.width,
+            image.height,
+            image.pixels.clone(),
+        )
+        .unwrap(),
+        gltf::image::Format::R16 => todo!(),
+        gltf::image::Format::R16G16 => todo!(),
+        gltf::image::Format::R16G16B16 => todo!(),
+        gltf::image::Format::R16G16B16A16 => todo!(),
+        gltf::image::Format::R32G32B32FLOAT => todo!(),
+        gltf::image::Format::R32G32B32A32FLOAT => todo!(),
+    }
+}
+
+pub fn load_gltf_texture(context: &crate::Context, image: &gltf::image::Data) -> wgpu::Texture {
+    // Do we need to do any color space mapping?
+    let rgba8_image = gltf_to_rgba8unorm(image);
+    let texture_size = wgpu::Extent3d {
+        width: rgba8_image.width(),
+        height: rgba8_image.height(),
+        depth_or_array_layers: 1,
+    };
+    // Lets just do a single mip level for now.
+    let texture = context.device.create_texture(&wgpu::TextureDescriptor {
+        size: texture_size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        label: None, // TODO
+        view_formats: &[],
+    });
+
+    context.queue.write_texture(
+        // Tells wgpu where to copy the pixel data
+        wgpu::TexelCopyTextureInfo {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        // The actual pixel data
+        &rgba8_image.as_raw(),
+        // The layout of the texture
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(4 * texture_size.width), // 4 because we used rgba8
+            rows_per_image: Some(texture_size.height),
+        },
+        texture_size,
+    );
+    context.queue.submit([]);
+    texture
+}

@@ -288,6 +288,7 @@ mod test {
             " struct MeshObjectMetaUniform {
             color_present: u32,
             normal_present: u32,
+            uv_present: u32,
         };
         ",
         )
