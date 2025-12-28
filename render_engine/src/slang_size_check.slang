@@ -24,3 +24,4 @@ void introspecter_##NAME(uint3 threadId : SV_DispatchThreadID)\
 // spv file AND is locked into using the correct field name and location.
 generate_introspecter(ViewUniform, view_proj)
 generate_introspecter(ViewUniform, camera_world_position)
+generate_introspecter(ViewUniform, _pad)

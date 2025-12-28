@@ -4,12 +4,12 @@ use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt as _;
 use zerocopy::{Immutable, IntoBytes};
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Copy, Clone, Debug, IntoBytes, Immutable)]
 pub struct ViewUniform {
     pub view_proj: Mat4,
     pub camera_world_position: Vec3,
-    pub _pad: [u32; 1],
+    pub _pad: u32,
 }
 
 impl ViewUniform {

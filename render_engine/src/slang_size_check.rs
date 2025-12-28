@@ -173,19 +173,22 @@ mod test {
         ($ty:ty, $( $e:ident ),*) => {
             $(
                 let field_info = size_check_retrieve_struct_field_info(stringify!($ty), stringify!($e)).unwrap();
-                assert_eq!(field_info.struct_name, stringify!($ty));
-                assert_eq!(field_info.field_name, stringify!($e));
+                assert_eq!(field_info.struct_name, stringify!($ty), "struct name doesn't match");
+                assert_eq!(field_info.field_name, stringify!($e), "field name doesn't match");
                 assert_eq!(
                     field_info.field_offset,
-                    std::mem::offset_of!($ty, $e) as u32
+                    std::mem::offset_of!($ty, $e) as u32,
+                    "field offset doesn't match, right is rust"
                 );
                 assert_eq!(
                     field_info.struct_size,
-                    std::mem::size_of::<$ty>() as u32
+                    std::mem::size_of::<$ty>() as u32,
+                    "struct size {} doesn't match, right is rust", stringify!($ty)
                 );
                 assert_eq!(
                     field_info.field_size,
-                    get_size_of_return_type((|s: $ty| s.$e)) as u32
+                    get_size_of_return_type((|s: $ty| s.$e)) as u32,
+                    "field size {} doesn't match, right is rust", stringify!($e)
                 );
             )*
         };

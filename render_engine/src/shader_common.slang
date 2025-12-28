@@ -11,6 +11,7 @@ struct ViewUniform{
     int _pad;
 }
 
+
 #ifdef REQUIRES_CAMERA_UNIFORM
 [[vk::binding(CAMERA_UNIFORM_BINDING, CAMERA_UNIFORM_SET)]]
 StructuredBuffer<ViewUniform> camera_uniform;
