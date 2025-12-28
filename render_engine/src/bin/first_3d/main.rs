@@ -82,20 +82,6 @@ impl simple_start::Drawable for LocalState {
         // let vertex_buffer = &persistent.gpu_mesh.vertex_buffer;
         // let index_buffer = &persistent.gpu_mesh.index_buffer;
 
-        let camera_world_position = state.camera.camera.eye.into();
-        let our_uniform = simple_start::view::ViewUniform {
-            view_proj: state.camera.to_view_matrix(),
-            camera_world_position,
-        };
-        // warn!("our_uniform: {our_uniform:?}");
-
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Shader Uniform"),
-            contents: [our_uniform].as_bytes(),
-
-            usage: wgpu::BufferUsages::STORAGE,
-        });
-
         let l1_theta = simple_start::get_angle_f32(1.2);
         let l2_theta = -simple_start::get_angle_f32(0.7) + 3.14;
         let l1_theta: f32 = 0.3;
@@ -156,29 +142,6 @@ impl simple_start::Drawable for LocalState {
         // let texture_format = state.target.get_texture_format()?;
         let texture_format = destination.get_texture_format();
 
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-                label: Some("camera_bind_group_layout"),
-            });
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-            label: Some("camera_bind_group"),
-        });
-
         let light_bind_group = gpu_lights.light_bind_group;
 
         let config = simple_start::render::PhongLikeMaterialConfig {
@@ -228,11 +191,14 @@ impl simple_start::Drawable for LocalState {
                 timestamp_writes: None,
             };
             let mut render_pass = encoder.begin_render_pass(&render_pass_desc);
-            render_pass.push_debug_group("Things");
-
             // Setup
             render_pass.set_pipeline(&render_pipeline);
-            render_pass.set_bind_group(0, &camera_bind_group, &[]);
+            state
+                .camera
+                .to_camera_uniform()
+                .add_commands(device, &mut render_pass);
+            // .render_pass
+            // .set_bind_group(0, &camera_bind_group, &[]);
             render_pass.set_bind_group(1, &light_bind_group, &[]);
 
             // Object properties.

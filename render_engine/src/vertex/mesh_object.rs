@@ -150,6 +150,8 @@ impl MeshObject {
     }
 
     pub fn add_commands(&self, render_pass: &mut wgpu::RenderPass) {
+        render_pass.push_debug_group(&self.gpu_mesh.name);
+
         render_pass.set_bind_group(Self::MESH_OBJECT_SET, &self.bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.gpu_mesh.vertex_buffer.slice(..));
         render_pass.set_index_buffer(

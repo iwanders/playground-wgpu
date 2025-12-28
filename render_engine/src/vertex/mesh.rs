@@ -127,9 +127,9 @@ impl CpuMesh {
                 label: Some(&format!("{}_bind_group", name_prefix)),
             });
 
-        if self.uv.is_some() {
-            todo!("still need to implement uv coords");
-        }
+        // if self.uv.is_some() {
+        //     todo!("still need to implement uv coords");
+        // }
 
         GpuMesh {
             name: name_prefix,
