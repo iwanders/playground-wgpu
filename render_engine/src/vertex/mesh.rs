@@ -110,6 +110,20 @@ impl CpuMesh {
                 contents: color_data,
                 usage: wgpu::BufferUsages::STORAGE,
             });
+
+        let uv_data = self
+            .uv
+            .as_ref()
+            .map(|z| z.as_bytes())
+            .unwrap_or([Vec2::ZERO].as_bytes());
+        let uv_buffer = context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("{}_uv", name_prefix)),
+                contents: uv_data,
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+
         let bind_group = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -123,13 +137,13 @@ impl CpuMesh {
                         binding: GpuMesh::MESH_BINDING_COLOR,
                         resource: color_buffer.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: GpuMesh::MESH_BINDING_UV,
+                        resource: uv_buffer.as_entire_binding(),
+                    },
                 ],
                 label: Some(&format!("{}_bind_group", name_prefix)),
             });
-
-        // if self.uv.is_some() {
-        //     todo!("still need to implement uv coords");
-        // }
 
         GpuMesh {
             name: name_prefix,
@@ -140,6 +154,8 @@ impl CpuMesh {
             normal_present: self.normal.is_some(),
             color_buffer,
             color_present: self.color.is_some(),
+            uv_buffer,
+            uv_present: self.uv.is_some(),
             bind_group,
         }
     }
@@ -164,11 +180,15 @@ pub struct GpuMesh {
     pub normal_present: bool,
     pub color_buffer: wgpu::Buffer,
     pub color_present: bool,
+
+    pub uv_buffer: wgpu::Buffer,
+    pub uv_present: bool,
 }
 
 impl GpuMesh {
     pub const MESH_BINDING_NORMAL: u32 = 0;
     pub const MESH_BINDING_COLOR: u32 = 1;
+    pub const MESH_BINDING_UV: u32 = 2;
     pub const MESH_LAYOUT: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
             label: Some("mesh_layout"),
@@ -187,6 +207,17 @@ impl GpuMesh {
                 // Color data
                 wgpu::BindGroupLayoutEntry {
                     binding: Self::MESH_BINDING_COLOR,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // UV data
+                wgpu::BindGroupLayoutEntry {
+                    binding: Self::MESH_BINDING_UV,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },

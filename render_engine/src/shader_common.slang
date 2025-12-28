@@ -67,11 +67,25 @@ struct CommonVertexOutput {
     float3 normal;
     float3 view_vector;
     float3 world_pos;
+    float2 uv_pos;
+
+    __init() {
+        clip_position = float4(0.0, 0.0, 0.0, 0.0);
+        color = float3(0.0, 0.0, 0.0);
+        normal = float3(0.0, 0.0, 0.0);
+        view_vector = float3(0.0, 0.0, 0.0);
+        world_pos = float3(0.0, 0.0, 0.0);
+        uv_pos = float2(0.0, 0.0 );
+    }
 };
 
 struct CommonFragmentOutput
 {
     float4 color;
+
+    __init() {
+        color = float4(0.0, 0.0, 0.0, 1.0);
+    }
 };
 
 static const float4x4 identity_float4x4 = float4x4(

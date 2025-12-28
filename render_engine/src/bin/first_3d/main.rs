@@ -38,9 +38,10 @@ impl simple_start::Drawable for LocalState {
 
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         // let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
-        let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
+        // let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
+        let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb");
         let (document, buffers, _images) = gltf::import(gltf_path)?;
-        // info!("document: {document:#?}");
+        info!("document: {document:#?}");
         let cpu_mesh = simple_start::loader::load_gltf(document, &buffers, 0);
 
         let gpu_mesh = cpu_mesh.to_gpu(&state.context);

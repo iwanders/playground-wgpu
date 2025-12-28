@@ -24,6 +24,7 @@ https://github.com/shader-slang/slang/tree/master/examples/gpu-printing#gpu-prin
 [shader("fragment")]
 CommonFragmentOutput fragmentMain( CommonVertexOutput in) : SV_Target
 {
+    CommonFragmentOutput output;
     let N = normalize(in.normal);
    	let V = normalize(in.view_vector);
 
@@ -31,6 +32,15 @@ CommonFragmentOutput fragmentMain( CommonVertexOutput in) : SV_Target
    	let baseColor = in.color;
 
    	let light_count = light_uniform.getCount();
+
+    if (false) {
+        output.color.r = in.uv_pos.x;
+        output.color.g = in.uv_pos.y;
+        // output.color.b = 0.0;
+        // output.color.a = 1.0;
+        return output;
+    }
+
    	var color = float3(0.0);
    	for (var i: uint = 0; i < light_count; i++) {
    	    let this_light  = light_uniform[i];
@@ -62,7 +72,6 @@ CommonFragmentOutput fragmentMain( CommonVertexOutput in) : SV_Target
    	// Gamma-correction
    	let corrected_color= color;
    	// let corrected_color = pow(color, vec3f(2.2));
-    CommonFragmentOutput output;
     output.color = float4(corrected_color, 1.0);
     // output.color.x = 0;
    	return output;

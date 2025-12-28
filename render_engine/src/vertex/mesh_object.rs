@@ -33,6 +33,7 @@ pub struct MeshObject {
 pub struct MeshObjectMetaUniform {
     pub color_present: u32,
     pub normal_present: u32,
+    pub uv_present: u32,
 }
 
 impl MeshObject {
@@ -48,6 +49,7 @@ impl MeshObject {
         let mesh_object_uniform = MeshObjectMetaUniform {
             color_present: gpu_mesh.color_present as u32,
             normal_present: gpu_mesh.normal_present as u32,
+            uv_present: gpu_mesh.uv_present as u32,
         };
         let mesh_object_uniform =
             context
@@ -79,6 +81,10 @@ impl MeshObject {
                     wgpu::BindGroupEntry {
                         binding: Self::MESH_BINDING_COLOR,
                         resource: gpu_mesh.color_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: Self::MESH_BINDING_UV,
+                        resource: gpu_mesh.uv_buffer.as_entire_binding(),
                     },
                 ],
                 label: Some(&format!("{}_bind_group", gpu_mesh.name)),
@@ -143,6 +149,10 @@ impl MeshObject {
                         binding: Self::MESH_BINDING_COLOR,
                         resource: self.gpu_mesh.color_buffer.as_entire_binding(),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: Self::MESH_BINDING_UV,
+                        resource: self.gpu_mesh.uv_buffer.as_entire_binding(),
+                    },
                 ],
                 label: Some(&format!("{}_bind_group", self.gpu_mesh.name)),
             });
@@ -192,6 +202,7 @@ impl MeshObject {
     pub const MESH_OBJECT_INSTANCES_BINDING: u32 = 1;
     pub const MESH_BINDING_NORMAL: u32 = 2;
     pub const MESH_BINDING_COLOR: u32 = 3;
+    pub const MESH_BINDING_UV: u32 = 4;
     pub const MESH_LAYOUT: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
             label: Some("mesh_object_layout"),
@@ -230,6 +241,16 @@ impl MeshObject {
                 // Color data
                 wgpu::BindGroupLayoutEntry {
                     binding: Self::MESH_BINDING_COLOR,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: Self::MESH_BINDING_UV,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Storage { read_only: true },

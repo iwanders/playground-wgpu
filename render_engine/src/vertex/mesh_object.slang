@@ -8,11 +8,13 @@ static const int MESH_OBJECT_UNIFORM_BINDING = 0;
 static const int MESH_OBJECT_INSTANCES_BINDING = 1;
 static const int MESH_OBJECT_BINDING_NORMAL = 2;
 static const int MESH_OBJECT_BINDING_COLOR = 3;
+static const int MESH_OBJECT_BINDING_UV = 4;
 
 
 struct MeshObjectMetaUniform {
     uint color_present;
     uint normal_present;
+    uint uv_present;
 };
 [[vk::binding(MESH_OBJECT_UNIFORM_BINDING, MESH_OBJECT_SET)]]
 StructuredBuffer<MeshObjectMetaUniform> mesh_object_uniform;
@@ -34,6 +36,8 @@ StructuredBuffer<float3> vertex_normal;
 [[vk::binding(MESH_OBJECT_BINDING_COLOR, MESH_OBJECT_SET)]]
 StructuredBuffer<float4> vertex_color;
 
+[[vk::binding(MESH_OBJECT_BINDING_UV, MESH_OBJECT_SET)]]
+StructuredBuffer<float2> vertex_uv;
 
 [shader("vertex")]
 CommonVertexOutput vertexMain(VertexInput in)
@@ -50,7 +54,10 @@ CommonVertexOutput vertexMain(VertexInput in)
     }
     var normal = float3(0.0, 0.0, 0.0);
     if (mesh_object_uniform.normal_present > 0) {
-        normal = vertex_normal[ in.vertexID];
+        normal = vertex_normal[in.vertexID];
+    }
+    if (mesh_object_uniform.uv_present > 0) {
+        out.uv_pos = vertex_uv[in.vertexID];
     }
     // normal = vertex_normals[in.vertex_index];
     out.clip_position = mul(camera_uniform .view_proj , mul(model_matrix , float4(in.position, 1.0)));
