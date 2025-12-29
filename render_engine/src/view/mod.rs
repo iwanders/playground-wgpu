@@ -61,3 +61,13 @@ pub trait CameraView {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn test_view_uniform_struct_align() {
+        let module = naga::front::wgsl::parse_str(include_str!("../shader_common.wgsl")).unwrap();
+        crate::verify_wgsl_struct_sized!(ViewUniform, module, view_proj, camera_world_position);
+    }
+}
