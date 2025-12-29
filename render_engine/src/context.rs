@@ -20,10 +20,11 @@ fn get_necessary_features() -> wgpu::Features {
     // And they do support push constants.
     // https://docs.rs/wgpu-types/27.0.1/wgpu_types/struct.Features.html#associatedconstant.PUSH_CONSTANTS
 
-    wgpu::Features::EXPERIMENTAL_PASSTHROUGH_SHADERS // We use this such that we can use slang and spirv shaders.
+    // wgpu::Features::EXPERIMENTAL_PASSTHROUGH_SHADERS // We use this such that we can use slang and spirv shaders.
     // | wgpu::Features::TEXTURE_BINDING_ARRAY // Such that we can bind variable numbers of textures.
     // | wgpu::Features::UNSIZED_BINDING_ARRAY
     // | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY
+    wgpu::Features::default()
 }
 
 impl Context {

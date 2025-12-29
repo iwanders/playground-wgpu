@@ -5,9 +5,6 @@ use wgpu::util::DeviceExt as _;
 use zerocopy::{Immutable, IntoBytes};
 
 use crate::wgpu_util::StaticWgslStack;
-const USE_WGSL_SHADER: bool = true;
-pub const MESH_OBJECT_SLANG: &str = include_str!("mesh_object.slang");
-pub const MESH_OBJECT_SPIRV: &[u8] = include_bytes!("mesh_object.spv");
 pub const MESH_OBJECT_WGSL: StaticWgslStack = StaticWgslStack {
     name: "mesh_object",
     entry: "main",
@@ -188,28 +185,7 @@ impl MeshObject {
     }
 
     pub fn retrieve_embedded_shader(device: &wgpu::Device) -> super::VertexCreaterShader {
-        if USE_WGSL_SHADER {
-            super::VertexCreaterShader::new(MESH_OBJECT_WGSL.create(device), MESH_OBJECT_WGSL.entry)
-        } else {
-            let config = wgpu::ShaderModuleDescriptorPassthrough {
-                label: Some("mesh_object.spv"),
-                // spirv: None,
-                spirv: Some(wgpu::util::make_spirv_raw(MESH_OBJECT_SPIRV)),
-                entry_point: "".to_owned(),
-                // This is unused for SPIR-V
-                num_workgroups: (0, 0, 0),
-                runtime_checks: wgpu::ShaderRuntimeChecks::unchecked(),
-                dxil: None,
-                msl: None,
-                hlsl: None,
-                glsl: None,
-                wgsl: None,
-            };
-            super::VertexCreaterShader::new(
-                unsafe { device.create_shader_module_passthrough(config) },
-                "main",
-            )
-        }
+        super::VertexCreaterShader::new(MESH_OBJECT_WGSL.create(device), MESH_OBJECT_WGSL.entry)
     }
 
     pub const MESH_OBJECT_SET: u32 = 2;
