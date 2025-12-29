@@ -1,6 +1,22 @@
 // This holds some 'owned' versions of the wgpu structs.
 // Not sure if this is actually... useful... many of them aren't actually used.
 
+pub struct StaticWgslStack {
+    pub name: &'static str,
+    pub entry: &'static str,
+    pub sources: &'static [&'static str],
+}
+impl StaticWgslStack {
+    pub fn create(&self, device: &wgpu::Device) -> wgpu::ShaderModule {
+        let combined_string = self.sources.iter().cloned().collect::<String>();
+        let descriptor = wgpu::ShaderModuleDescriptor {
+            label: Some(self.name),
+            source: wgpu::ShaderSource::Wgsl(combined_string.as_str().into()),
+        };
+        device.create_shader_module(descriptor)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct BindGroupLayoutDescriptorOwned {
     pub label: Option<String>,

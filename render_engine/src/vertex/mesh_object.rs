@@ -4,11 +4,18 @@ use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt as _;
 use zerocopy::{Immutable, IntoBytes};
 
+use crate::wgpu_util::StaticWgslStack;
 const USE_WGSL_SHADER: bool = true;
 pub const MESH_OBJECT_SLANG: &str = include_str!("mesh_object.slang");
 pub const MESH_OBJECT_SPIRV: &[u8] = include_bytes!("mesh_object.spv");
-pub const MESH_OBJECT_WGSL: wgpu::ShaderModuleDescriptor<'_> =
-    wgpu::include_wgsl!("mesh_object.wgsl");
+pub const MESH_OBJECT_WGSL: StaticWgslStack = StaticWgslStack {
+    name: "mesh_object",
+    entry: "main",
+    sources: &[
+        include_str!("../shader_common.wgsl"),
+        include_str!("mesh_object.wgsl"),
+    ],
+};
 
 /// Something that owns a gpu mesh and generates vertices from it at the vertex stage
 #[derive(Clone, Debug)]
@@ -182,7 +189,7 @@ impl MeshObject {
 
     pub fn retrieve_embedded_shader(device: &wgpu::Device) -> super::VertexCreaterShader {
         if USE_WGSL_SHADER {
-            super::VertexCreaterShader::new(device.create_shader_module(MESH_OBJECT_WGSL), "main")
+            super::VertexCreaterShader::new(MESH_OBJECT_WGSL.create(device), MESH_OBJECT_WGSL.entry)
         } else {
             let config = wgpu::ShaderModuleDescriptorPassthrough {
                 label: Some("mesh_object.spv"),

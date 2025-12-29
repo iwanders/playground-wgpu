@@ -111,7 +111,20 @@ impl Renderer {
     }
 }*/
 
+use crate::wgpu_util::StaticWgslStack;
+
 const USE_GENERATED_WGSL: bool = true;
+const USE_WGSL_SHADER: bool = true;
+
+pub const MESH_OBJECT_WGSL: StaticWgslStack = StaticWgslStack {
+    name: "phong_thing",
+    entry: "main",
+    sources: &[
+        include_str!("../shader_common.wgsl"),
+        include_str!("shader.wgsl"),
+    ],
+};
+
 pub mod mesh_object_textured;
 
 pub struct PhongLikeMaterialConfig {
@@ -135,27 +148,31 @@ impl PhongLikeMaterial {
     }
 
     fn retrieve_embedded_shader(device: &wgpu::Device) -> wgpu::ShaderModule {
-        if USE_GENERATED_WGSL {
-            let z = wgpu::include_wgsl!("shader.generated.wgsl");
-            let shader = device.create_shader_module(z);
-
-            shader
+        if USE_WGSL_SHADER {
+            MESH_OBJECT_WGSL.create(device)
         } else {
-            let config = wgpu::ShaderModuleDescriptorPassthrough {
-                label: Some("shader.spv"),
-                // spirv: None,
-                spirv: Some(wgpu::util::make_spirv_raw(include_bytes!("shader.spv"))),
-                entry_point: "".to_owned(),
-                // This is unused for SPIR-V
-                num_workgroups: (0, 0, 0),
-                runtime_checks: wgpu::ShaderRuntimeChecks::unchecked(),
-                dxil: None,
-                msl: None,
-                hlsl: None,
-                glsl: None,
-                wgsl: None,
-            };
-            unsafe { device.create_shader_module_passthrough(config) }
+            if USE_GENERATED_WGSL {
+                let z = wgpu::include_wgsl!("shader.generated.wgsl");
+                let shader = device.create_shader_module(z);
+
+                shader
+            } else {
+                let config = wgpu::ShaderModuleDescriptorPassthrough {
+                    label: Some("shader.spv"),
+                    // spirv: None,
+                    spirv: Some(wgpu::util::make_spirv_raw(include_bytes!("shader.spv"))),
+                    entry_point: "".to_owned(),
+                    // This is unused for SPIR-V
+                    num_workgroups: (0, 0, 0),
+                    runtime_checks: wgpu::ShaderRuntimeChecks::unchecked(),
+                    dxil: None,
+                    msl: None,
+                    hlsl: None,
+                    glsl: None,
+                    wgsl: None,
+                };
+                unsafe { device.create_shader_module_passthrough(config) }
+            }
         }
     }
 
@@ -198,10 +215,14 @@ impl PhongLikeMaterial {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &fragment_shader,
-                entry_point: if USE_GENERATED_WGSL {
-                    Some("fragmentMain")
-                } else {
+                entry_point: if USE_WGSL_SHADER {
                     Some("main")
+                } else {
+                    if USE_GENERATED_WGSL {
+                        Some("fragmentMain")
+                    } else {
+                        Some("main")
+                    }
                 },
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.rgba_format,
