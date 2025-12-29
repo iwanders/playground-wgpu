@@ -166,10 +166,14 @@ impl PhongLikeMaterial {
         let light_layout =
             device.create_bind_group_layout(&crate::lights::CpuLights::bind_group_layout());
 
+        let texture_layout = device.create_bind_group_layout(
+            &crate::render::mesh_object_textured::MeshObjectTextured::bind_group_layout(),
+        );
+
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&camera_layout, &light_layout, &mesh_layout],
+                bind_group_layouts: &[&camera_layout, &light_layout, &mesh_layout, &texture_layout],
                 push_constant_ranges: &[],
             });
 

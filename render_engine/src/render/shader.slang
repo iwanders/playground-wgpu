@@ -20,6 +20,23 @@ https://github.com/shader-slang/slang/tree/master/examples/gpu-printing#gpu-prin
 #define REQUIRES_LIGHT_UNIFORM 1
 #include "../shader_common.slang"
 
+// How do we NOT provide a combined texture sampler?
+// https://shader-slang.org/slang/user-guide/spirv-target-specific#combined-texture-sampler
+// oh... https://github.com/shader-slang/slang/issues/6471
+// hmm and https://github.com/gfx-rs/wgpu/issues/4342
+//
+
+static const int TEXTURE_UNIFORM_SET = 3;
+static const int TEXTURE_UNIFORM_BINDING_TEXTURE = 0;
+// static const int TEXTURE_UNIFORM_BINDING_SAMPLER = 1;
+// var texture_array_top: binding_array<texture_2d<f32>>;
+
+// [[vk::binding(TEXTURE_UNIFORM_BINDING_TEXTURE, TEXTURE_UNIFORM_SET)]]
+// Texture2DArray texture_array;
+
+// [[vk::binding(TEXTURE_UNIFORM_BINDING_SAMPLER, TEXTURE_UNIFORM_SET)]]
+Sampler2DArray texture_sampler;
+
 // Output of the fragment shader
 [shader("fragment")]
 CommonFragmentOutput fragmentMain( CommonVertexOutput in) : SV_Target
@@ -29,7 +46,12 @@ CommonFragmentOutput fragmentMain( CommonVertexOutput in) : SV_Target
    	let V = normalize(in.view_vector);
 
    	// Sample texture
-   	let baseColor = in.color;
+   	// let baseColor = in.color;
+    // https://github.com/Rust-GPU/VulkanShaderExamples/blob/b29a37eb46802b5ea6882af4808d6887fc184581/shaders/slang/texture/texture.slang#L58
+    // let baseColor = texture_sampler[0].SampleLevel( in.uv_pos, 0).xyz;
+    let baseColor = texture_sampler.Sample(float3(in.uv_pos, 0)).rgb;
+
+    // let baseColor = float3(1.0, 0.0, 0.0);
 
    	let light_count = light_uniform.getCount();
 

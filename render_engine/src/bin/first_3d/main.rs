@@ -1,6 +1,6 @@
 use glam::{Mat4, Vec3, vec3};
 use log::*;
-use simple_start::{State, view::CameraView};
+use simple_start::{State, render::mesh_object_textured::MeshObjectTextured, view::CameraView};
 
 use gltf;
 
@@ -21,6 +21,7 @@ use gltf;
 use simple_start::vertex::mesh_object::MeshObject;
 struct PersistentState {
     mesh_object: MeshObject,
+    mesh_object_textured: MeshObjectTextured,
     depth_format: wgpu::TextureFormat,
     material: Option<simple_start::render::PhongLikeMaterial>,
 }
@@ -42,7 +43,7 @@ impl simple_start::Drawable for LocalState {
 
         let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
         let (document, buffers, images) = gltf::import(gltf_path)?;
-        info!("document: {document:#?}");
+        // info!("document: {document:#?}");
         let textures: Vec<wgpu::Texture> = images
             .iter()
             .map(|z| simple_start::loader::load_gltf_texture(&state.context, z))
@@ -50,6 +51,7 @@ impl simple_start::Drawable for LocalState {
         let cpu_mesh = simple_start::loader::load_gltf(document, &buffers, 0);
 
         let gpu_mesh = cpu_mesh.to_gpu(&state.context);
+
         let mut mesh_object =
             simple_start::vertex::mesh_object::MeshObject::new(state.context.clone(), gpu_mesh);
         mesh_object.set_single_transform(&Mat4::from_scale(Vec3::splat(0.2)));
@@ -70,8 +72,13 @@ impl simple_start::Drawable for LocalState {
 
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
         mesh_object.replace_gpu_data();
+
+        let mesh_object_textured =
+            MeshObjectTextured::new(state.context.clone(), mesh_object.clone(), &textures);
+
         self.persistent = Some(PersistentState {
             mesh_object,
+            mesh_object_textured,
             material: None,
             depth_format: DEPTH_FORMAT,
         });
@@ -215,7 +222,10 @@ impl simple_start::Drawable for LocalState {
             );
 
             // Object properties.
-            persistent.mesh_object.add_commands(&mut render_pass);
+            // persistent.mesh_object.add_commands(&mut render_pass);
+            persistent
+                .mesh_object_textured
+                .add_commands(&mut render_pass);
             // render_pass.set_bind_group(2, &persistent.gpu_mesh.bind_group, &[]);
             // render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             // render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);

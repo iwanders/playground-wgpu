@@ -8,6 +8,7 @@ pub const MESH_OBJECT_SLANG: &str = include_str!("mesh_object.slang");
 pub const MESH_OBJECT_SPIRV: &[u8] = include_bytes!("mesh_object.spv");
 
 /// Something that owns a gpu mesh and generates vertices from it at the vertex stage
+#[derive(Clone, Debug)]
 pub struct MeshObject {
     /// The context we operate on.
     pub context: Context,
