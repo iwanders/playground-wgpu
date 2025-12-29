@@ -13,10 +13,10 @@ const TEXTURE_UNIFORM_BINDING_TEXTURE: u32 = 0;
 const TEXTURE_UNIFORM_BINDING_SAMPLER: u32 = 1;
 
 @binding(TEXTURE_UNIFORM_BINDING_TEXTURE) @group(TEXTURE_UNIFORM_SET)
-var texture : texture_2d<f32>;
+var texture : binding_array<texture_2d<f32>>;
 
 @binding(TEXTURE_UNIFORM_BINDING_SAMPLER) @group(TEXTURE_UNIFORM_SET)
-var texture_sampler : sampler;
+var texture_sampler : binding_array<sampler>;
 
 @fragment
 fn main( input : CommonVertexOutput) -> CommonFragmentOutput
@@ -33,7 +33,9 @@ fn main( input : CommonVertexOutput) -> CommonFragmentOutput
     // let baseColor = texture_sampler[0].SampleLevel( in.uv_pos, 0).xyz;
     // let baseColor = texture_sampler.Sample( float3(in.uv_pos, 1.0)).rgb;
     // let baseColor = texture_sampler.Sample( in.uv_pos ).rgb;
-    let baseColor = (textureSample(texture, texture_sampler, input.uv_pos)).xyz;
+    var baseColor : vec3<f32>;
+   	// let texture_count : u32 = arrayLength(&texture_sampler);
+    baseColor = (textureSample(texture[0], texture_sampler[0], input.uv_pos)).xyz;
 
     // let baseColor = float3(1.0, 0.0, 0.0);
 

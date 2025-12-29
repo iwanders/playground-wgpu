@@ -19,12 +19,20 @@ fn get_necessary_features() -> wgpu::Features {
     // https://docs.rs/wgpu-types/27.0.1/wgpu_types/struct.Features.html#associatedconstant.STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING
     // And they do support push constants.
     // https://docs.rs/wgpu-types/27.0.1/wgpu_types/struct.Features.html#associatedconstant.PUSH_CONSTANTS
-
+    wgpu::Features::default()
     // wgpu::Features::EXPERIMENTAL_PASSTHROUGH_SHADERS // We use this such that we can use slang and spirv shaders.
-    // | wgpu::Features::TEXTURE_BINDING_ARRAY // Such that we can bind variable numbers of textures.
+    | wgpu::Features::TEXTURE_BINDING_ARRAY // Such that we can bind variable numbers of textures.
     // | wgpu::Features::UNSIZED_BINDING_ARRAY
     // | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY
-    wgpu::Features::default()
+    | wgpu::Features::PARTIALLY_BOUND_BINDING_ARRAY
+}
+
+fn get_necessary_limits() -> wgpu::Limits {
+    wgpu::Limits {
+        max_binding_array_elements_per_shader_stage: 1024,
+        max_binding_array_sampler_elements_per_shader_stage: 1024,
+        ..Default::default()
+    }
 }
 
 impl Context {
@@ -48,12 +56,7 @@ impl Context {
                 required_features: get_necessary_features(),
                 experimental_features: unsafe { wgpu::ExperimentalFeatures::enabled() },
 
-                required_limits: wgpu::Limits {
-                    // This nonsense to allow binding arrays of textures... :<
-                    max_binding_array_elements_per_shader_stage: 1024,
-                    max_binding_array_sampler_elements_per_shader_stage: 1024,
-                    ..Default::default()
-                },
+                required_limits: get_necessary_limits(),
                 memory_hints: Default::default(),
                 trace: wgpu::Trace::Off,
             })
@@ -105,7 +108,7 @@ impl Context {
                 required_features: get_necessary_features(),
                 experimental_features: unsafe { wgpu::ExperimentalFeatures::enabled() },
                 // we're building for the web we'll have to disable some.
-                required_limits: wgpu::Limits::default(),
+                required_limits: get_necessary_limits(),
                 memory_hints: Default::default(),
                 trace: wgpu::Trace::Off,
             })
