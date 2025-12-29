@@ -15,6 +15,58 @@ impl StaticWgslStack {
         };
         device.create_shader_module(descriptor)
     }
+    pub fn to_module(&self) -> wgpu::naga::Module {
+        let combined_string = self.sources.iter().cloned().collect::<String>();
+        let module = naga::front::wgsl::parse_str(&combined_string).unwrap();
+        module
+    }
+}
+
+#[macro_export]
+macro_rules! verify_field {
+    ($Container:ty, $field:expr, $members:expr) => {
+        let mut found: bool = false;
+        for member in $members.iter() {
+            let name = std::stringify!($field);
+            if member.name.as_ref().map(|v| v.as_str()) == Some(name) {
+                let rust_offset = std::mem::offset_of!($Container, $field) as u32;
+                // Verify the offset.
+                assert_eq!(
+                    member.offset, rust_offset,
+                    "offset of member {} does not match rust; {}, wgsl: {}",
+                    name, rust_offset, member.offset
+                );
+                found = true;
+            }
+        }
+        if !found {
+            assert!(false, "could not find member {}", std::stringify!($field));
+        }
+    };
+}
+#[macro_export]
+macro_rules! verify_wgsl_struct_sized {
+    ($ty:ty, $shader_module:expr, $( $e:ident ),*) => {
+        let our_struct_type = $shader_module
+            .types
+            .iter()
+            .find(|z| z.1.name.as_ref().map(|v| v.as_str()) == Some(stringify!($ty)))
+            .unwrap();
+        if let naga::ir::TypeInner::Struct { members, span } = &our_struct_type.1.inner {
+            assert_eq!(
+                std::mem::size_of::<$ty>() as u32,
+                *span,
+                "Rust struct size does not match expected wgsl length: {}",
+                *span
+            );
+
+            $(
+                crate::verify_field!($ty, $e, members);
+            )*
+        } else {
+            panic!("Incorrect type found");
+        }
+    };
 }
 
 #[derive(Debug, Clone)]

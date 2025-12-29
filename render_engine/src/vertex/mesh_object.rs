@@ -295,36 +295,15 @@ crate::static_assert_size!(Mat4, 4 * 4 * 4);
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::verify_field;
-
     #[test]
-    fn test_light_struct_align() {
-        let module = naga::front::wgsl::parse_str(
-            " struct MeshObjectMetaUniform {
-            color_present: u32,
-            normal_present: u32,
-            uv_present: u32,
-        };
-        ",
-        )
-        .unwrap();
-
-        let our_struct_type = module
-            .types
-            .iter()
-            .find(|z| z.1.name.as_ref().map(|v| v.as_str()) == Some("MeshObjectMetaUniform"))
-            .unwrap();
-        if let naga::ir::TypeInner::Struct { members, span } = &our_struct_type.1.inner {
-            verify_field!(MeshObjectMetaUniform, color_present, members);
-            verify_field!(MeshObjectMetaUniform, normal_present, members);
-            assert_eq!(
-                std::mem::size_of::<MeshObjectMetaUniform>() as u32,
-                *span,
-                "Rust struct size does not match expected wgsl length: {}",
-                *span
-            );
-        } else {
-            panic!("Incorrect type found");
-        };
+    fn test_mesh_object_struct_align() {
+        let module = MESH_OBJECT_WGSL.to_module();
+        crate::verify_wgsl_struct_sized!(
+            MeshObjectMetaUniform,
+            module,
+            color_present,
+            normal_present,
+            uv_present
+        );
     }
 }

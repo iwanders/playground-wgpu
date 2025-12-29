@@ -317,26 +317,3 @@ macro_rules! static_assert_size {
         const _: [(); $size] = [(); ::std::mem::size_of::<$ty>()];
     };
 }
-
-#[macro_export]
-macro_rules! verify_field {
-    ($Container:ty, $field:expr, $members:expr) => {
-        let mut found: bool = false;
-        for member in $members.iter() {
-            let name = std::stringify!($field);
-            if member.name.as_ref().map(|v| v.as_str()) == Some(name) {
-                let rust_offset = std::mem::offset_of!($Container, $field) as u32;
-                // Verify the offset.
-                assert_eq!(
-                    member.offset, rust_offset,
-                    "offset of member {} does not match rust; {}, wgsl: {}",
-                    name, rust_offset, member.offset
-                );
-                found = true;
-            }
-        }
-        if !found {
-            assert!(false, "could not find member {}", std::stringify!($field));
-        }
-    };
-}

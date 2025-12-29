@@ -140,41 +140,11 @@ pub struct GpuLights {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::verify_field;
-
     #[test]
     fn test_light_struct_align() {
-        let module = naga::front::wgsl::parse_str(
-            "struct Light {
-            position: vec3f,
-            direction: vec3f,
-            color: vec3f,
-            intensity: f32,
-            light_type: u32,
-            // hardness_kd_ks: vec3f,
-        };",
-        )
-        .unwrap();
-
-        let our_struct_type = module
-            .types
-            .iter()
-            .find(|z| z.1.name.as_ref().map(|v| v.as_str()) == Some("Light"))
-            .unwrap();
-        if let naga::ir::TypeInner::Struct { members, span } = &our_struct_type.1.inner {
-            verify_field!(Light, position, members);
-            verify_field!(Light, direction, members);
-            verify_field!(Light, color, members);
-            verify_field!(Light, intensity, members);
-            verify_field!(Light, light_type, members);
-            assert_eq!(
-                std::mem::size_of::<Light>() as u32,
-                *span,
-                "Rust struct size does not match expected wgsl length: {}",
-                *span
-            );
-        } else {
-            panic!("Incorrect type found");
-        };
+        let module = naga::front::wgsl::parse_str(include_str!("shader_common.wgsl")).unwrap();
+        crate::verify_wgsl_struct_sized!(
+            Light, module, position, direction, color, intensity, light_type
+        );
     }
 }
