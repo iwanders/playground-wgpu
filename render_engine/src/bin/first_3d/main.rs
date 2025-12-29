@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3, vec3};
+use glam::{Affine3A, Mat4, Vec3, vec3};
 use log::*;
 use simple_start::{State, render::mesh_object_textured::MeshObjectTextured, view::CameraView};
 
@@ -49,6 +49,7 @@ impl simple_start::Drawable for LocalState {
             .map(|z| simple_start::loader::load_gltf_texture(&state.context, z))
             .collect();
         let cpu_mesh = simple_start::loader::load_gltf(document, &buffers, 0);
+        let poly_count_per_mesh = cpu_mesh.index.len() / 3;
 
         let gpu_mesh = cpu_mesh.to_gpu(&state.context);
 
@@ -60,15 +61,23 @@ impl simple_start::Drawable for LocalState {
         for x in 0..100 {
             for y in 0..100 {
                 for z in 0..100 {
-                    many_transforms.push(Mat4::from_translation(vec3(
+                    let value = Mat4::from_translation(vec3(
                         x as f32 * 1.5,
-                        y as f32 * 1.5,
-                        z as f32 * 1.5,
-                    )));
+                        -y as f32 * 1.5,
+                        -z as f32 * 1.5,
+                    )) * Mat4::from_scale(Vec3::splat(0.2))
+                        * Mat4::from_rotation_x(3.14 / 2.0);
+                    many_transforms.push(value);
                 }
             }
         }
         // mesh_object.set_transforms(&many_transforms);
+        // info!(
+        //     "total objects: {}, each has {} polygons, for a total of {}",
+        //     many_transforms.len(),
+        //     poly_count_per_mesh,
+        //     many_transforms.len() * poly_count_per_mesh
+        // );
 
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
         mesh_object.replace_gpu_data();
@@ -102,8 +111,8 @@ impl simple_start::Drawable for LocalState {
 
         let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
             simple_start::lights::Light::directional() // sun left
-                .with_direction([1.0, -1.0, 0.5])
-                .with_intensity(1.0)
+                .with_direction([-1.0, -1.0, 0.5])
+                .with_intensity(0.2)
                 .with_color([0.1, 0.1, 0.1]),
             simple_start::lights::Light::directional() // sun right
                 .with_direction([1.0, 1.0, 1.0])
@@ -112,11 +121,11 @@ impl simple_start::Drawable for LocalState {
             simple_start::lights::Light::omni() // Orbitter red
                 .with_position([l1_theta.cos() * radius, l1_theta.sin() * radius, 0.1])
                 .with_intensity(5.0)
-                .with_color([1.0, 0.3, 0.3]),
+                .with_color([2.0, 1.3, 0.3]),
             simple_start::lights::Light::omni() // Orbitter green
                 .with_position([l2_theta.cos() * radius, l2_theta.sin() * radius, 0.1])
                 .with_intensity(5.0)
-                .with_color([0.3, 0.3, 0.1]),
+                .with_color([1.3, 1.3, 0.1]),
         ]);
 
         let gpu_lights = lights.to_gpu();

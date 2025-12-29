@@ -4,8 +4,11 @@ use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt as _;
 use zerocopy::{Immutable, IntoBytes};
 
+const USE_WGSL_SHADER: bool = true;
 pub const MESH_OBJECT_SLANG: &str = include_str!("mesh_object.slang");
 pub const MESH_OBJECT_SPIRV: &[u8] = include_bytes!("mesh_object.spv");
+pub const MESH_OBJECT_WGSL: wgpu::ShaderModuleDescriptor<'_> =
+    wgpu::include_wgsl!("mesh_object.wgsl");
 
 /// Something that owns a gpu mesh and generates vertices from it at the vertex stage
 #[derive(Clone, Debug)]
@@ -178,24 +181,28 @@ impl MeshObject {
     }
 
     pub fn retrieve_embedded_shader(device: &wgpu::Device) -> super::VertexCreaterShader {
-        let config = wgpu::ShaderModuleDescriptorPassthrough {
-            label: Some("mesh_object.spv"),
-            // spirv: None,
-            spirv: Some(wgpu::util::make_spirv_raw(MESH_OBJECT_SPIRV)),
-            entry_point: "".to_owned(),
-            // This is unused for SPIR-V
-            num_workgroups: (0, 0, 0),
-            runtime_checks: wgpu::ShaderRuntimeChecks::unchecked(),
-            dxil: None,
-            msl: None,
-            hlsl: None,
-            glsl: None,
-            wgsl: None,
-        };
-        super::VertexCreaterShader::new(
-            unsafe { device.create_shader_module_passthrough(config) },
-            "main",
-        )
+        if USE_WGSL_SHADER {
+            super::VertexCreaterShader::new(device.create_shader_module(MESH_OBJECT_WGSL), "main")
+        } else {
+            let config = wgpu::ShaderModuleDescriptorPassthrough {
+                label: Some("mesh_object.spv"),
+                // spirv: None,
+                spirv: Some(wgpu::util::make_spirv_raw(MESH_OBJECT_SPIRV)),
+                entry_point: "".to_owned(),
+                // This is unused for SPIR-V
+                num_workgroups: (0, 0, 0),
+                runtime_checks: wgpu::ShaderRuntimeChecks::unchecked(),
+                dxil: None,
+                msl: None,
+                hlsl: None,
+                glsl: None,
+                wgsl: None,
+            };
+            super::VertexCreaterShader::new(
+                unsafe { device.create_shader_module_passthrough(config) },
+                "main",
+            )
+        }
     }
 
     pub const MESH_OBJECT_SET: u32 = 2;
