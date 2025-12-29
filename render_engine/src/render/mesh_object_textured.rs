@@ -1,4 +1,8 @@
-use crate::{context::Context, vertex::mesh_object::MeshObject};
+use crate::{
+    context::Context,
+    texture::{CpuTextureInfo, GpuTextureInfo, SampledTexture},
+    vertex::mesh_object::MeshObject,
+};
 
 // https://github.com/gfx-rs/wgpu/pull/715
 // https://github.com/gfx-rs/wgpu/pull/711
@@ -6,58 +10,18 @@ use crate::{context::Context, vertex::mesh_object::MeshObject};
 // Should work...?
 // https://github.com/gfx-rs/wgpu/pull/1995
 
-pub struct SampledTexture {
-    pub sampler: wgpu::Sampler,
-    pub texture: wgpu::Texture,
-}
-
 pub struct MeshObjectTextured {
     /// The context we operate on.
     pub context: Context,
     /// The mesh object we are operating on.
     pub mesh_object: MeshObject,
-    /// The textures necessary by the fragment shader.
-    pub textures: Vec<SampledTexture>,
 
-    /// The texture bind group.
-    pub texture_bind_group: wgpu::BindGroup,
-}
-
-const fn create_non_zero() -> Option<std::num::NonZero<u32>> {
-    unsafe { Some(std::num::NonZero::<u32>::new_unchecked(10)) }
+    /// The textures.
+    pub cpu_textures: CpuTextureInfo,
+    pub gpu_textures: GpuTextureInfo,
 }
 
 impl MeshObjectTextured {
-    pub const MESH_OBJECT_TEXTURE_SET: u32 = 3;
-    pub const MESH_OBJECT_TEXTURE_BINDING_TEXTURE: u32 = 0;
-    pub const MESH_OBJECT_TEXTURE_BINDING_SAMPLER: u32 = 1;
-
-    pub const fn bind_group_layout() -> wgpu::BindGroupLayoutDescriptor<'static> {
-        // Do this clunky bi-directional approach such that the compiler doesn't complain :/
-        const FIRST: wgpu::BindGroupLayoutEntry = wgpu::BindGroupLayoutEntry {
-            binding: MeshObjectTextured::MESH_OBJECT_TEXTURE_BINDING_TEXTURE,
-            visibility: wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Texture {
-                multisampled: false,
-                view_dimension: wgpu::TextureViewDimension::D2,
-                sample_type: wgpu::TextureSampleType::Float { filterable: true },
-            },
-            count: create_non_zero(),
-        };
-        const SECOND: wgpu::BindGroupLayoutEntry = wgpu::BindGroupLayoutEntry {
-            binding: MeshObjectTextured::MESH_OBJECT_TEXTURE_BINDING_SAMPLER,
-            visibility: wgpu::ShaderStages::FRAGMENT,
-            // This should match the filterable field of the
-            // corresponding Texture entry above.
-            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-            count: create_non_zero(),
-        };
-        wgpu::BindGroupLayoutDescriptor {
-            entries: &[FIRST, SECOND],
-            label: Some("mesh_object_textured_layout"),
-        }
-    }
-
     pub fn new(context: Context, mesh_object: MeshObject, textures: &[wgpu::Texture]) -> Self {
         let device = &context.device;
         let textures: Vec<SampledTexture> = textures
@@ -79,26 +43,15 @@ impl MeshObjectTextured {
             })
             .collect();
 
-        // Create dummy bindgroup.
-        let layout = context
-            .device
-            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[],
-                label: None,
-            });
-        let texture_bind_group = context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &layout,
-                entries: &[],
-                label: None,
-            });
+        let cpu_textures =
+            CpuTextureInfo::new(device, &format!("{}", mesh_object.gpu_mesh.name), &textures);
+        let gpu_textures = cpu_textures.to_gpu();
 
         let mut res = Self {
-            textures,
             context,
             mesh_object,
-            texture_bind_group,
+            cpu_textures,
+            gpu_textures,
         };
         // Replace the dummy bindgroup with something real.
         res.replace_gpu_data();
@@ -106,41 +59,11 @@ impl MeshObjectTextured {
     }
 
     pub fn replace_gpu_data(&mut self) {
-        let sampler_pointers: Vec<&wgpu::Sampler> =
-            self.textures.iter().map(|z| &z.sampler).collect();
-        let texture_views: Vec<wgpu::TextureView> = self
-            .textures
-            .iter()
-            .map(|v| v.texture.create_view(&Default::default()))
-            .collect();
-        let view_pointers: Vec<&wgpu::TextureView> = texture_views.iter().collect();
-
-        let layout = self
-            .context
-            .device
-            .create_bind_group_layout(&Self::bind_group_layout());
-        let texture_bind_group =
-            self.context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    layout: &layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: Self::MESH_OBJECT_TEXTURE_BINDING_TEXTURE,
-                            resource: wgpu::BindingResource::TextureViewArray(&view_pointers),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: Self::MESH_OBJECT_TEXTURE_BINDING_SAMPLER,
-                            resource: wgpu::BindingResource::SamplerArray(&sampler_pointers),
-                        },
-                    ],
-                    label: Some(&format!("{}_bind_group", self.mesh_object.gpu_mesh.name)),
-                });
-        self.texture_bind_group = texture_bind_group;
+        self.gpu_textures = self.cpu_textures.to_gpu();
     }
 
     pub fn add_commands(&self, render_pass: &mut wgpu::RenderPass) {
-        render_pass.set_bind_group(Self::MESH_OBJECT_TEXTURE_SET, &self.texture_bind_group, &[]);
+        self.gpu_textures.add_commands(render_pass);
         self.mesh_object.add_commands(render_pass);
     }
 }

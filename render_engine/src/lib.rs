@@ -25,6 +25,7 @@ pub mod render;
 pub mod target;
 pub mod view;
 
+pub mod texture;
 pub mod vertex;
 
 pub mod loader;

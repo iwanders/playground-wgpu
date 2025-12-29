@@ -24,7 +24,7 @@ fn get_necessary_features() -> wgpu::Features {
     | wgpu::Features::TEXTURE_BINDING_ARRAY // Such that we can bind variable numbers of textures.
     // | wgpu::Features::UNSIZED_BINDING_ARRAY
     // | wgpu::Features::STORAGE_RESOURCE_BINDING_ARRAY
-    | wgpu::Features::PARTIALLY_BOUND_BINDING_ARRAY
+    | wgpu::Features::PARTIALLY_BOUND_BINDING_ARRAY // such that we can bind less than the declared count.
 }
 
 fn get_necessary_limits() -> wgpu::Limits {

@@ -38,10 +38,10 @@ impl simple_start::Drawable for LocalState {
         state.camera.camera.eye = vec3(-0.6, -0.65, 0.43);
 
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
-        let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
+        // let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
 
-        // let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
+        let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
         let (document, buffers, images) = gltf::import(gltf_path)?;
         // info!("document: {document:#?}");
         let textures: Vec<wgpu::Texture> = images
