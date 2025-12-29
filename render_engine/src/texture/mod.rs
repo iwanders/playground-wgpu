@@ -1,4 +1,4 @@
-use wgpu::Device;
+use wgpu::{Device, util::DeviceExt as _};
 use zerocopy::{Immutable, IntoBytes};
 
 // For all textures... index 0 is unused and denotes not present, this also prevents the situation where the array holds
@@ -10,15 +10,59 @@ use zerocopy::{Immutable, IntoBytes};
 pub struct TextureUniform {
     pub base_color: u32,
     pub metallic_roughness: u32,
-    pub occulusion: u32,
+    pub occlusion: u32,
     pub normal: u32,
     pub emissive: u32,
+}
+
+impl TextureUniform {
+    pub fn create_from_iter<'a, I: Iterator<Item = (usize, &'a SampledTexture)>>(it: I) -> Self {
+        let mut base_color = 0;
+        let mut metallic_roughness = 0;
+        let mut occlusion = 0;
+        let mut normal = 0;
+        let mut emissive = 0;
+
+        for (index, texture) in it {
+            match texture.texture_type {
+                TextureType::BaseColor => base_color = index as u32,
+                TextureType::MetallicRoughness => metallic_roughness = index as u32,
+                TextureType::Occlusion => occlusion = index as u32,
+                TextureType::Normal => normal = index as u32,
+                TextureType::Emissive => emissive = index as u32,
+                _ => {}
+            }
+        }
+
+        TextureUniform {
+            base_color,
+            metallic_roughness,
+            occlusion,
+            normal,
+            emissive,
+        }
+    }
+}
+
+#[derive(
+    Debug, Copy, Clone, PartialEq, Hash, Ord, PartialOrd, Eq, IntoBytes, Immutable, Default,
+)]
+#[repr(u32)]
+pub enum TextureType {
+    #[default]
+    None = 0,
+    BaseColor = 1,
+    MetallicRoughness = 2,
+    Occlusion = 3,
+    Normal = 4,
+    Emissive = 5,
 }
 
 #[derive(Clone, Debug)]
 pub struct SampledTexture {
     pub sampler: wgpu::Sampler,
     pub texture: wgpu::Texture,
+    pub texture_type: TextureType,
 }
 #[derive(Clone, Debug)]
 pub struct CpuTextureInfo {
@@ -57,7 +101,9 @@ impl CpuTextureInfo {
                 label: Some("dummy_0th_texture"),
                 view_formats: &[],
             }),
+            texture_type: TextureType::None,
         });
+
         Self {
             device: device.clone(),
             textures: dummy.iter().chain(textures.iter()).cloned().collect(),
@@ -78,6 +124,16 @@ impl CpuTextureInfo {
         let layout = self
             .device
             .create_bind_group_layout(&GpuTextureInfo::bind_group_layout());
+
+        let texture_uniform = TextureUniform::create_from_iter(self.textures.iter().enumerate());
+
+        let texture_uniform_buffer =
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some(&format!("{}_texture_uniform", self.name)),
+                    contents: texture_uniform.as_bytes(),
+                    usage: wgpu::BufferUsages::STORAGE,
+                });
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &layout,
             entries: &[
@@ -88,6 +144,10 @@ impl CpuTextureInfo {
                 wgpu::BindGroupEntry {
                     binding: GpuTextureInfo::TEXTURE_BINDING_SAMPLER,
                     resource: wgpu::BindingResource::SamplerArray(&sampler_pointers),
+                },
+                wgpu::BindGroupEntry {
+                    binding: GpuTextureInfo::TEXTURE_BINDING_UNIFORM_META,
+                    resource: texture_uniform_buffer.as_entire_binding(),
                 },
             ],
             label: Some(&self.name),
@@ -104,6 +164,7 @@ impl GpuTextureInfo {
     pub const TEXTURE_SET: u32 = 3;
     pub const TEXTURE_BINDING_TEXTURE: u32 = 0;
     pub const TEXTURE_BINDING_SAMPLER: u32 = 1;
+    pub const TEXTURE_BINDING_UNIFORM_META: u32 = 2;
 
     pub const fn bind_group_layout() -> wgpu::BindGroupLayoutDescriptor<'static> {
         // Do this clunky bi-directional approach such that the compiler doesn't complain :/
@@ -125,12 +186,40 @@ impl GpuTextureInfo {
             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
             count: create_non_zero(),
         };
+        const THIRD: wgpu::BindGroupLayoutEntry = wgpu::BindGroupLayoutEntry {
+            binding: GpuTextureInfo::TEXTURE_BINDING_UNIFORM_META,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        };
         wgpu::BindGroupLayoutDescriptor {
-            entries: &[FIRST, SECOND],
+            entries: &[FIRST, SECOND, THIRD],
             label: Some("mesh_object_textured_layout"),
         }
     }
     pub fn add_commands(&self, render_pass: &mut wgpu::RenderPass) {
         render_pass.set_bind_group(Self::TEXTURE_SET, &self.bind_group, &[]);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn test_texture_struct_align() {
+        let module = naga::front::wgsl::parse_str(include_str!("../shader_common.wgsl")).unwrap();
+        crate::verify_wgsl_struct_sized!(
+            TextureUniform,
+            module,
+            base_color,
+            metallic_roughness,
+            occlusion,
+            normal,
+            emissive
+        );
     }
 }

@@ -39,7 +39,11 @@ impl MeshObjectTextured {
                     // lod_max_clamp: 5.0,
                     ..Default::default()
                 });
-                SampledTexture { sampler, texture }
+                SampledTexture {
+                    sampler,
+                    texture,
+                    texture_type: crate::texture::TextureType::BaseColor,
+                }
             })
             .collect();
 

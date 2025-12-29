@@ -6,17 +6,14 @@ var<storage, read> camera_uniform : CameraUniformType;
 @binding(LIGHT_UNIFORM_BINDING) @group(LIGHT_UNIFORM_SET)
 var<storage, read> light_uniform : array<Light>;
 
-
-//-- Next up is the actual fragment stuff.
-const TEXTURE_UNIFORM_SET : u32 = 3;
-const TEXTURE_UNIFORM_BINDING_TEXTURE: u32 = 0;
-const TEXTURE_UNIFORM_BINDING_SAMPLER: u32 = 1;
-
 @binding(TEXTURE_UNIFORM_BINDING_TEXTURE) @group(TEXTURE_UNIFORM_SET)
 var texture : binding_array<texture_2d<f32>>;
 
 @binding(TEXTURE_UNIFORM_BINDING_SAMPLER) @group(TEXTURE_UNIFORM_SET)
 var texture_sampler : binding_array<sampler>;
+
+@binding(TEXTURE_UNIFORM_META) @group(TEXTURE_UNIFORM_SET)
+var<storage, read> texture_uniform : array<TextureUniform>;
 
 @fragment
 fn main( input : CommonVertexOutput) -> CommonFragmentOutput
@@ -27,17 +24,14 @@ fn main( input : CommonVertexOutput) -> CommonFragmentOutput
     let N = normalize(input.normal);
    	let V = normalize(input.view_vector);
 
-   	// Sample texture
-   	// let baseColor = in.color;
-    // https://github.com/Rust-GPU/VulkanShaderExamples/blob/b29a37eb46802b5ea6882af4808d6887fc184581/shaders/slang/texture/texture.slang#L58
-    // let baseColor = texture_sampler[0].SampleLevel( in.uv_pos, 0).xyz;
-    // let baseColor = texture_sampler.Sample( float3(in.uv_pos, 1.0)).rgb;
-    // let baseColor = texture_sampler.Sample( in.uv_pos ).rgb;
     var baseColor : vec3<f32>;
-   	// let texture_count : u32 = arrayLength(&texture_sampler);
-    baseColor = (textureSample(texture[1], texture_sampler[1], input.uv_pos)).xyz;
 
-    // let baseColor = float3(1.0, 0.0, 0.0);
+    let texture_meta = texture_uniform[0];
+
+    if ( texture_meta.base_color != 0){
+        baseColor = (textureSample(texture[texture_meta.base_color], texture_sampler[texture_meta.base_color], input.uv_pos)).xyz;
+    }
+
 
    	let light_count : u32 = arrayLength(&light_uniform);
 

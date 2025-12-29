@@ -76,3 +76,30 @@ const LIGHT_UNIFORM_SET : u32 = 1;
 const LIGHT_UNIFORM_BINDING : u32 = 0;
 // @binding(LIGHT_UNIFORM_BINDING) @group(LIGHT_UNIFORM_SET)
 // var<storage, read> light_uniform : array<Light>;
+
+
+// -- Texture
+//
+//
+const TEXTURE_UNIFORM_SET : u32 = 3;
+const TEXTURE_UNIFORM_BINDING_TEXTURE: u32 = 0;
+const TEXTURE_UNIFORM_BINDING_SAMPLER: u32 = 1;
+const TEXTURE_UNIFORM_META: u32 = 2;
+
+alias TextureType = u32;
+const TEXTURE_TYPE_NONE : TextureType = 0;
+const TEXTURE_TYPE_BASE_COLOR : TextureType = 1;
+const TEXTURE_TYPE_METALLIC_ROUGHNESS : TextureType = 2;
+const TEXTURE_TYPE_OCCLUSION : TextureType = 3;
+const TEXTURE_TYPE_NORMAL : TextureType = 4;
+const TEXTURE_TYPE_EMISSIVE : TextureType = 5;
+
+struct TextureUniform {
+     @location(0) base_color: u32,
+     @location(1) metallic_roughness: u32,
+     @location(2) occlusion: u32,
+     @location(3) normal: u32,
+     @location(4) emissive: u32,
+};
+// @binding(TEXTURE_UNIFORM_META) @group(TEXTURE_UNIFORM_SET)
+// var<storage, read> texture_uniform : array<TextureUniform>;

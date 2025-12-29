@@ -2,14 +2,31 @@
 
 Lets set this all up such that it sort-of-composes nicely.
 
-   Bind group 0: view (camera)
-    Provides the view transform and camera location.
-   Bind group 1; lights
-    Provides light information.
-   Bind group 2; vertex stage; mesh object
-    Creates the CommonVertexOutput output, which is used by the fragment shader
-   Bind group 3; textures
-    Creates a texture array and a sampler array.
+    Bind group 0: view (camera)
+        Provides the view transform and camera location.
+    Bind group 1; lights
+        Provides light information.
+    Bind group 2; vertex stage; mesh object
+        Creates the CommonVertexOutput output, which is used by the fragment shader
+    Bind group 3; textures
+        Creates a texture array and a sampler array.
+
+
+    We try to use arrays everywhere, that way we should be - eventually - be able to coalesce multiple objects into a
+    single bind group & draw call.
+
+    The only thing in a vertex buffer is the positions, the remainder of vertex data is looked up on demand by looking
+    at various other arrays.
+
+
+    Vertex:
+        position, instance id, vertex id
+        normal, color & uv are looked up based on the uniform & vertex id.
+    Textures:
+        array<texture>
+        array<sampler>
+        uniform specifies which one for each.
+
 
 */
 
