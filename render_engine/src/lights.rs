@@ -26,7 +26,6 @@ pub struct Light {
     // something something falloff..?
     pub _pad1: [u8; 12],
 }
-// Tested at the bottom... for wgsl :|
 
 impl Light {
     pub fn omni() -> Self {

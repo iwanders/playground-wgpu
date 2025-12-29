@@ -35,7 +35,7 @@ fn main( input : CommonVertexOutput) -> CommonFragmentOutput
     // let baseColor = texture_sampler.Sample( in.uv_pos ).rgb;
     var baseColor : vec3<f32>;
    	// let texture_count : u32 = arrayLength(&texture_sampler);
-    baseColor = (textureSample(texture[0], texture_sampler[0], input.uv_pos)).xyz;
+    baseColor = (textureSample(texture[1], texture_sampler[1], input.uv_pos)).xyz;
 
     // let baseColor = float3(1.0, 0.0, 0.0);
 

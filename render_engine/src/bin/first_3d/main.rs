@@ -1,6 +1,6 @@
 use glam::{Affine3A, Mat4, Vec3, vec3};
 use log::*;
-use simple_start::{State, render::mesh_object_textured::MeshObjectTextured, view::CameraView};
+use simple_start::{State, fragment::mesh_object_textured::MeshObjectTextured, view::CameraView};
 
 use gltf;
 
@@ -23,7 +23,7 @@ struct PersistentState {
     mesh_object: MeshObject,
     mesh_object_textured: MeshObjectTextured,
     depth_format: wgpu::TextureFormat,
-    material: Option<simple_start::render::PhongLikeMaterial>,
+    material: Option<simple_start::fragment::PhongLikeMaterial>,
 }
 struct LocalState {
     persistent: Option<PersistentState>,
@@ -166,13 +166,13 @@ impl simple_start::Drawable for LocalState {
         // pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
 
         let material = persistent.material.get_or_insert_with(|| {
-            let config = simple_start::render::PhongLikeMaterialConfig {
+            let config = simple_start::fragment::PhongLikeMaterialConfig {
                 rgba_format: texture_format,
                 depth_format: persistent.depth_format,
             };
             info!("Setting up pipeline with {texture_format:?}");
 
-            simple_start::render::PhongLikeMaterial::new(
+            simple_start::fragment::PhongLikeMaterial::new(
                 &state.context,
                 &config,
                 simple_start::vertex::mesh_object::MeshObject::retrieve_embedded_shader(

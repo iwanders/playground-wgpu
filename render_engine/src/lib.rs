@@ -1,16 +1,23 @@
 /*
 
-   Bind group 0; global stuff, like lights & camera
-   Bind group 1; material stuff
-   Bind group 2; object stuff.
+Lets set this all up such that it sort-of-composes nicely.
 
-
-   https://github.com/gfx-rs/wgpu/issues/6273
-
-   But why...
-   https://www.w3.org/TR/webgpu/#minimum-buffer-binding-size
+   Bind group 0: view (camera)
+    Provides the view transform and camera location.
+   Bind group 1; lights
+    Provides light information.
+   Bind group 2; vertex stage; mesh object
+    Creates the CommonVertexOutput output, which is used by the fragment shader
+   Bind group 3; textures
+    Creates a texture array and a sampler array.
 
 */
+
+/*
+  Helpful reading on concurrency;
+  https://github.com/gfx-rs/wgpu/issues/6273
+*/
+
 use anyhow::Context as WithContext;
 use log::*;
 use std::path::Path;
@@ -18,16 +25,18 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::KeyCode;
 use winit::{event::*, event_loop::EventLoop, keyboard::PhysicalKey, window::Window};
 
+// Meta
 pub mod context;
-pub mod lights;
-
-pub mod render;
 pub mod target;
-pub mod view;
 
+// Render components.
+pub mod fragment;
+pub mod lights;
 pub mod texture;
 pub mod vertex;
+pub mod view;
 
+// Helpers
 pub mod loader;
 pub mod wgpu_util;
 

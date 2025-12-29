@@ -1,4 +1,19 @@
 use wgpu::Device;
+use zerocopy::{Immutable, IntoBytes};
+
+// For all textures... index 0 is unused and denotes not present, this also prevents the situation where the array holds
+// nothing.
+
+// Common stuff, from the gltf damaged helmet: metallic roughness, base color, occlusion, normal, emissive
+#[derive(Debug, Copy, Clone, PartialEq, IntoBytes, Immutable, Default)]
+#[repr(C)]
+pub struct TextureUniform {
+    pub base_color: u32,
+    pub metallic_roughness: u32,
+    pub occulusion: u32,
+    pub normal: u32,
+    pub emissive: u32,
+}
 
 #[derive(Clone, Debug)]
 pub struct SampledTexture {
@@ -18,9 +33,34 @@ const fn create_non_zero() -> Option<std::num::NonZero<u32>> {
 
 impl CpuTextureInfo {
     pub fn new(device: &Device, name: &str, textures: &[SampledTexture]) -> Self {
+        let dummy = Some(SampledTexture {
+            sampler: device.create_sampler(&wgpu::SamplerDescriptor {
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear, // Nearest
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            }),
+            texture: device.create_texture(&wgpu::TextureDescriptor {
+                size: wgpu::Extent3d {
+                    width: 1, // does this work? lol
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                label: Some("dummy_0th_texture"),
+                view_formats: &[],
+            }),
+        });
         Self {
             device: device.clone(),
-            textures: textures.to_vec(),
+            textures: dummy.iter().chain(textures.iter()).cloned().collect(),
             name: name.to_string(),
         }
     }
