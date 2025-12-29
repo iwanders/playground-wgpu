@@ -10,6 +10,7 @@ use crate::{
 // Should work...?
 // https://github.com/gfx-rs/wgpu/pull/1995
 
+#[derive(Debug, Clone)]
 pub struct MeshObjectTextured {
     /// The context we operate on.
     pub context: Context,
@@ -22,7 +23,11 @@ pub struct MeshObjectTextured {
 }
 
 impl MeshObjectTextured {
-    pub fn new(context: Context, mesh_object: MeshObject, textures: &[wgpu::Texture]) -> Self {
+    pub fn new_simple(
+        context: Context,
+        mesh_object: MeshObject,
+        textures: &[wgpu::Texture],
+    ) -> Self {
         let device = &context.device;
         let textures: Vec<SampledTexture> = textures
             .iter()
@@ -62,6 +67,29 @@ impl MeshObjectTextured {
         res
     }
 
+    pub fn new(
+        context: Context,
+        mesh_object: MeshObject,
+        sampled_textures: &[SampledTexture],
+    ) -> Self {
+        let device = &context.device;
+
+        let cpu_textures = CpuTextureInfo::new(
+            device,
+            &format!("{}", mesh_object.gpu_mesh.name),
+            &sampled_textures,
+        );
+        let gpu_textures = cpu_textures.to_gpu();
+
+        let mut res = Self {
+            context,
+            mesh_object,
+            cpu_textures,
+            gpu_textures,
+        };
+        res.replace_gpu_data();
+        res
+    }
     pub fn replace_gpu_data(&mut self) {
         self.gpu_textures = self.cpu_textures.to_gpu();
     }

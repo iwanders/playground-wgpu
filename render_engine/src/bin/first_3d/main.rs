@@ -21,7 +21,7 @@ use gltf;
 use simple_start::vertex::mesh_object::MeshObject;
 struct PersistentState {
     mesh_object: MeshObject,
-    mesh_object_textured: MeshObjectTextured,
+    mesh_objects_textured: Vec<MeshObjectTextured>,
     depth_format: wgpu::TextureFormat,
     material: Option<simple_start::fragment::PhongLikeMaterial>,
 }
@@ -35,20 +35,25 @@ impl LocalState {
 }
 impl simple_start::Drawable for LocalState {
     fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error> {
-        state.camera.camera.eye = vec3(-0.6, -0.65, 0.43);
+        state.camera.camera.eye = vec3(-1.368807, 2.1078022, 0.92118156);
 
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         // let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
+        let gltf_path = std::path::PathBuf::from("../../assets/DamagedHelmet.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
 
-        let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
+        // let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
+
+        let mesh_objects_textured =
+            simple_start::loader::load_gltf_objects(&state.context, &gltf_path)?;
+
         let (document, buffers, images) = gltf::import(gltf_path)?;
         // info!("document: {document:#?}");
         let textures: Vec<wgpu::Texture> = images
             .iter()
             .map(|z| simple_start::loader::load_gltf_texture(&state.context, z))
             .collect();
-        let cpu_mesh = simple_start::loader::load_gltf(document, &buffers, 0);
+        let cpu_mesh = simple_start::loader::load_gltf(&document, &buffers, 0);
 
         let poly_count_per_mesh = cpu_mesh.index.len() / 3;
 
@@ -83,12 +88,12 @@ impl simple_start::Drawable for LocalState {
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
         mesh_object.replace_gpu_data();
 
-        let mesh_object_textured =
-            MeshObjectTextured::new(state.context.clone(), mesh_object.clone(), &textures);
+        // let mesh_object_textured =
+        //     MeshObjectTextured::new_simple(state.context.clone(), mesh_object.clone(), &textures);
 
         self.persistent = Some(PersistentState {
             mesh_object,
-            mesh_object_textured,
+            mesh_objects_textured,
             material: None,
             depth_format: DEPTH_FORMAT,
         });
@@ -219,6 +224,7 @@ impl simple_start::Drawable for LocalState {
             let mut render_pass = encoder.begin_render_pass(&render_pass_desc);
             // Setup
             render_pass.set_pipeline(&material.render_pipeline);
+            println!("camera: { :?}", state.camera);
             state
                 .camera
                 .to_camera_uniform()
@@ -233,9 +239,9 @@ impl simple_start::Drawable for LocalState {
 
             // Object properties.
             // persistent.mesh_object.add_commands(&mut render_pass);
-            persistent
-                .mesh_object_textured
-                .add_commands(&mut render_pass);
+            for obj in persistent.mesh_objects_textured.iter() {
+                obj.add_commands(&mut render_pass);
+            }
             // render_pass.set_bind_group(2, &persistent.gpu_mesh.bind_group, &[]);
             // render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             // render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);

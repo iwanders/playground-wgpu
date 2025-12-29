@@ -24,7 +24,7 @@ fn main( input : CommonVertexOutput) -> CommonFragmentOutput
     let N = normalize(input.normal);
    	let V = normalize(input.view_vector);
 
-    var baseColor : vec3<f32>;
+    var baseColor : vec3<f32> = input.color;
 
     let texture_meta = texture_uniform[0];
 

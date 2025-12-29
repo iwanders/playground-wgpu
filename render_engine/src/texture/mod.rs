@@ -64,6 +64,8 @@ pub struct SampledTexture {
     pub texture: wgpu::Texture,
     pub texture_type: TextureType,
 }
+
+// What a misnomer :/
 #[derive(Clone, Debug)]
 pub struct CpuTextureInfo {
     pub device: wgpu::Device,
@@ -126,6 +128,7 @@ impl CpuTextureInfo {
             .create_bind_group_layout(&GpuTextureInfo::bind_group_layout());
 
         let texture_uniform = TextureUniform::create_from_iter(self.textures.iter().enumerate());
+        println!("texture_uniform: {texture_uniform:?}");
 
         let texture_uniform_buffer =
             self.device
@@ -156,6 +159,7 @@ impl CpuTextureInfo {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct GpuTextureInfo {
     pub bind_group: wgpu::BindGroup,
 }
