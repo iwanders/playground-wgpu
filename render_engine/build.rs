@@ -3,6 +3,9 @@ fn main() {
     println!("cargo::rerun-if-changed=src/render/");
     println!("cargo::rerun-if-changed=src/vertex/");
 
+    const TARGETS_IGNORED: &[&'static str] = &["shader_common.slang"];
+    const TARGETS_AS_WSGL: &[&'static str] = &["shader.slang"];
+
     let src_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let mut slang_files = Vec::new();
 
@@ -13,7 +16,7 @@ fn main() {
             let path = entry.path();
             if path.is_file() {
                 let filename = path.file_name().unwrap().to_str().unwrap();
-                if filename == "shader_common.slang" {
+                if TARGETS_IGNORED.contains(&filename) {
                     continue;
                 }
                 if filename.ends_with(".slang") {
@@ -31,8 +34,14 @@ fn main() {
         println!("cargo::rerun-if-changed={}", file);
         // eprintln!("cargo::rerun-if-changed={}", file);
         let file_path = std::path::Path::new(&file);
+        let filename = file_path.file_name().unwrap().to_str().unwrap();
         // let file_dirname = file_path.parent().unwrap();
-        let path_as_spv = file_path.with_extension("spv");
+
+        let path_as_spv = if TARGETS_AS_WSGL.contains(&filename) {
+            file_path.with_extension("generated.wgsl")
+        } else {
+            file_path.with_extension("spv")
+        };
         // let spv_file_basename = path_as_spv.file_stem().unwrap().to_string_lossy();
         let output = std::process::Command::new("slangc")
             .arg(&file_path)

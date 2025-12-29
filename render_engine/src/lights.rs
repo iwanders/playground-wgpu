@@ -67,7 +67,7 @@ pub struct CpuLights {
 
 impl CpuLights {
     pub const LIGHT_SET: u32 = 1;
-    // pub const LIGHT_UNIFORM_BINDING: u32 = 0; // <- why is this not used???
+    pub const LIGHT_UNIFORM_BINDING: u32 = 0; // <- why is this not used???
     pub fn new(context: crate::Context) -> Self {
         Self {
             context,
@@ -85,7 +85,7 @@ impl CpuLights {
     pub const fn bind_group_layout() -> wgpu::BindGroupLayoutDescriptor<'static> {
         wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
-                binding: Self::LIGHT_SET,
+                binding: Self::LIGHT_UNIFORM_BINDING,
                 visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -118,7 +118,7 @@ impl CpuLights {
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &light_bind_group_layout,
                 entries: &[wgpu::BindGroupEntry {
-                    binding: Self::LIGHT_SET,
+                    binding: Self::LIGHT_UNIFORM_BINDING,
                     resource: light_buffer.as_entire_binding(),
                 }],
                 label: Some("light_bind_group"),

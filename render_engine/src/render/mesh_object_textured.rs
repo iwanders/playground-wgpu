@@ -42,7 +42,7 @@ impl MeshObjectTextured {
                 view_dimension: wgpu::TextureViewDimension::D2,
                 sample_type: wgpu::TextureSampleType::Float { filterable: true },
             },
-            count: create_non_zero(),
+            count: None,
         };
         const SECOND: wgpu::BindGroupLayoutEntry = wgpu::BindGroupLayoutEntry {
             binding: MeshObjectTextured::MESH_OBJECT_TEXTURE_BINDING_SAMPLER,
@@ -50,7 +50,7 @@ impl MeshObjectTextured {
             // This should match the filterable field of the
             // corresponding Texture entry above.
             ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-            count: create_non_zero(),
+            count: None,
         };
         wgpu::BindGroupLayoutDescriptor {
             entries: &[FIRST, SECOND],
@@ -127,11 +127,11 @@ impl MeshObjectTextured {
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: Self::MESH_OBJECT_TEXTURE_BINDING_TEXTURE,
-                            resource: wgpu::BindingResource::TextureViewArray(&view_pointers),
+                            resource: wgpu::BindingResource::TextureView(&view_pointers[0]),
                         },
                         wgpu::BindGroupEntry {
                             binding: Self::MESH_OBJECT_TEXTURE_BINDING_SAMPLER,
-                            resource: wgpu::BindingResource::SamplerArray(&sampler_pointers),
+                            resource: wgpu::BindingResource::Sampler(&sampler_pointers[0]),
                         },
                     ],
                     label: Some(&format!("{}_bind_group", self.mesh_object.gpu_mesh.name)),
