@@ -5,15 +5,6 @@
 //   with IBL disabled and only point lights looks kinda... 'meh', but it only has one light from the looks of it.
 //   In some sources omega is used to depict vectors (w_i for incidence, w_o for out?) in the equation form.
 //
-// GLTF on material structure:
-//      https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#material-structure
-//
-// GLTF also has a section on microfacet surfaces:
-//  https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#microfacet-surfaces
-// Oh, and an sample implementation; https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#implementation
-//
-//
-//
 // "Background: Physics and Math of Shading": by Naty Hoffman
 //      https://blog.selfshadow.com/publications/s2013-shading-course/hoffman/s2013_pbs_physics_math_notes.pdf
 //      Excellent read to understand this all, notes below for myself:
@@ -140,9 +131,9 @@
 //  https://renderwonk.com/publications/s2010-shading-course/hoffman/s2010_physically_based_shading_hoffman_b.pdf
 //  https://renderwonk.com/publications/s2010-shading-course/hoffman/s2010_physically_based_shading_hoffman_b_notes.pdf
 //
-// Also helpful; https://boksajak.github.io/blog/BRDF has a nice pdf
+// Also helpful; https://boksajak.github.io/blog/BRDF has a nice pdf with further explanation.
 //
-// Okay, so this is _actually_ not rocket science, there's just a lot of symbols and variations in notation.
+// Okay, so this (the actual lighting) is _actually_ not rocket science, there's just a lot of symbols and variations in notation.
 //
 // Roughly; outgoing light = self_emitted_light + \Sum_{lights}(brdf_sampled * incoming_light * fresnel_part)
 //
@@ -151,6 +142,28 @@
 // The incoming light is just the attenuated light from the source.
 // Self emitted light is... well self emitted light, no one seems to talk about this, but it seems simple enough to
 // get something reasonable.
+//
+// GLTF on material structure:
+//      https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#material-structure
+//
+// GLTF also has a section on microfacet surfaces:
+//  https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#microfacet-surfaces
+// Oh, and an sample implementation; https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#implementation
+//
+//
+// Normals are another problem:
+//  We need to rotate the normal map with the mesh position.
+//  See https://eliemichel.github.io/LearnWebGPU/basic-3d-rendering/lighting-and-material/normal-mapping.html
+//
+// GLTF:
+//  https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#foreword:~:text=When%20tangents%20are%20not%20specified%2C%20client%20implementations%20SHOULD%20calculate%20tangents
+//  When tangents are not specified, client implementations SHOULD calculate tangents using default MikkTSpace algorithms
+//  with the specified vertex positions, normals, and texture coordinates associated with the normal texture.
+//
+// Okay, so just rotating the normals & normal mapping is like... super complex, as described on http://www.mikktspace.com/
+// Reference implementation; https://github.com/mmikk/MikkTSpace
+// The Bevy folks conveniently ported this to a standalone rust implementation.
+//
 // ------------------------------------------------------------------------------------
 
 

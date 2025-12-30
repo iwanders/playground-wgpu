@@ -1,6 +1,7 @@
 pub mod mesh;
 // Something that can actually create vertices from the mesh.
 pub mod mesh_object;
+mod mikktspace;
 
 pub struct VertexCreaterShader {
     pub shader_module: wgpu::ShaderModule,

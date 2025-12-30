@@ -20,3 +20,6 @@ zerocopy-derive = "0.8"
 glam = {version="0.30.9", features=["zerocopy"]}
 thiserror = "2.0.17"
 gltf={version="1.0", features=["utils"]}
+
+# This is an implementation of mikktspace that does NOT have any additional bevy-tie-in.
+bevy_mikktspace = "0.16.1"

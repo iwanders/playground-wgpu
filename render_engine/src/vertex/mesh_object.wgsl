@@ -10,12 +10,14 @@ const MESH_OBJECT_INSTANCES_BINDING: u32 = 1;
 const MESH_OBJECT_BINDING_NORMAL: u32 = 2;
 const MESH_OBJECT_BINDING_COLOR: u32 = 3;
 const MESH_OBJECT_BINDING_UV: u32 = 4;
+const MESH_OBJECT_BINDING_TANGENT: u32 = 5;
 
 
 struct MeshObjectMetaUniform {
     color_present: u32,
     normal_present: u32,
     uv_present: u32,
+    tangent_present: u32,
 };
 
 @binding(MESH_OBJECT_UNIFORM_BINDING) @group(MESH_OBJECT_SET)
@@ -33,6 +35,9 @@ vertex_color : array<vec4<f32>>;
 
 @binding(MESH_OBJECT_BINDING_UV) @group(MESH_OBJECT_SET) var<storage, read>
 vertex_uv : array<vec2<f32>>;
+
+@binding(MESH_OBJECT_BINDING_TANGENT) @group(MESH_OBJECT_SET) var<storage, read>
+vertex_tangent : array<vec4<f32>>;
 
 
 @vertex

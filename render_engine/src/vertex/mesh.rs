@@ -23,7 +23,9 @@ pub struct CpuMesh {
 
     /// The UV mapping
     pub uv: Option<Vec<Vec2>>,
-    // apparently most PBR materials have two UV maps :/
+    // apparently some PBR materials have two UV maps :/
+    /// Tangents, in mikktspace.
+    pub tangents: Option<Vec<Vec4>>,
 }
 
 impl CpuMesh {
@@ -36,6 +38,7 @@ impl CpuMesh {
             normal: None,
             uv: None,
             name: None,
+            tangents: None,
         }
     }
 
@@ -43,6 +46,16 @@ impl CpuMesh {
     pub fn with_name(mut self, name: &str) -> Self {
         self.name = Some(name.to_owned());
         self
+    }
+
+    pub fn calculate_tangents(&mut self) -> bool {
+        // This needs to access the uv and normals, but it doesn't provide the API to propage it missing, so shield
+        // against the invalid unwrap here.
+        if self.uv.is_none() || self.normal.is_none() {
+            return false;
+        }
+        self.tangents = Some(vec![Default::default(); self.position.len()]);
+        bevy_mikktspace::generate_tangents(self)
     }
 
     pub fn get_name_prefix(&self) -> String {
@@ -124,6 +137,19 @@ impl CpuMesh {
                 usage: wgpu::BufferUsages::STORAGE,
             });
 
+        let tangent_data = self
+            .tangents
+            .as_ref()
+            .map(|z| z.as_bytes())
+            .unwrap_or([Vec4::ZERO].as_bytes());
+        let tangent_buffer = context
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("{}_tangent", name_prefix)),
+                contents: tangent_data,
+                usage: wgpu::BufferUsages::STORAGE,
+            });
+
         let bind_group = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -156,6 +182,8 @@ impl CpuMesh {
             color_present: self.color.is_some(),
             uv_buffer,
             uv_present: self.uv.is_some(),
+            tangent_buffer,
+            tangent_present: self.tangents.is_some(),
             bind_group,
         }
     }
@@ -183,12 +211,16 @@ pub struct GpuMesh {
 
     pub uv_buffer: wgpu::Buffer,
     pub uv_present: bool,
+
+    pub tangent_buffer: wgpu::Buffer,
+    pub tangent_present: bool,
 }
 
 impl GpuMesh {
     pub const MESH_BINDING_NORMAL: u32 = 0;
     pub const MESH_BINDING_COLOR: u32 = 1;
     pub const MESH_BINDING_UV: u32 = 2;
+    pub const MESH_BINDING_TANGENT: u32 = 3;
     pub const MESH_LAYOUT: wgpu::BindGroupLayoutDescriptor<'static> =
         wgpu::BindGroupLayoutDescriptor {
             label: Some("mesh_layout"),

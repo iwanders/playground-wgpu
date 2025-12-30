@@ -2,6 +2,7 @@ use crate::vertex::mesh::CpuMesh;
 use crate::{fragment::mesh_object_textured::MeshObjectTextured, vertex::mesh_object::MeshObject};
 use anyhow::Context as _;
 use glam::{Mat4, Vec2, Vec3, Vec3A, Vec4, vec2, vec3, vec3a, vec4};
+use log::*;
 
 struct MeshIndex(usize);
 
@@ -96,6 +97,11 @@ fn load_gltf_meshes(
                     this_mesh.normal = normal_buffer;
                     this_mesh.uv = uv_buffer;
                     this_mesh.name = name;
+
+                    let tangents_calculated = this_mesh.calculate_tangents();
+                    if !tangents_calculated {
+                        warn!("Could not calculate tangents for {:?}", this_mesh.name);
+                    }
 
                     result.push((MeshIndex(mesh.index()), this_mesh));
                 }
