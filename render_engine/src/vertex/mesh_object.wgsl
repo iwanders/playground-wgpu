@@ -38,27 +38,39 @@ vertex_uv : array<vec2<f32>>;
 @vertex
 fn main(in : VertexInput) ->  CommonVertexOutput {
     var out : CommonVertexOutput;
-
-    let model_matrix = mesh_object_instances[in.instanceID];
-    let world_position =  (model_matrix * vec4<f32>(in.position, 1.0));
-    let mesh_object_uniform= mesh_object_uniform[0];
+    // Because these are already arrays.
+    let mesh_object_uniform = mesh_object_uniform[0];
     let camera_uniform = camera_uniform[0];
+
+    // Short hands
+    let view_proj = camera_uniform.view_proj;
+    let camera_world_position = camera_uniform.camera_world_position;
+
+    // Obtain the model location in the world.
+    let model_matrix = mesh_object_instances[in.instanceID];
+    // Transform the vertex from local frame to world frame.
+    let world_position =  (model_matrix * vec4<f32>(in.position, 1.0));
+
+    // Set the color to default ot white.
     out.color = vec3<f32>(1.0, 1.0, 1.0);
     if (mesh_object_uniform.color_present > 0) {
-        out.color = vertex_color[in.vertexID].xyz;
+        out.color = vertex_color[in.vertexID].rgb;
     }
-    var normal = vec3<f32>(0.0, 0.0, 0.0);
+
+    // Retrieve the normal, and rotate it from local frame to world frame.
     if (mesh_object_uniform.normal_present > 0) {
-        normal = vertex_normal[in.vertexID];
+        let normal = vertex_normal[in.vertexID];
+        out.normal =  (model_matrix * vec4<f32>(normal, 1.0)).xyz;
     }
+    // Retrieve the uv map.
     if (mesh_object_uniform.uv_present > 0) {
         out.uv_pos = vertex_uv[in.vertexID];
     }
-    // normal = vertex_normals[in.vertex_index];
-    out.clip_position = (camera_uniform .view_proj * (model_matrix * vec4<f32>(in.position, 1.0)));
-    out.normal =  (model_matrix * vec4<f32>(normal, 0.0)).xyz;
-    out.view_vector = camera_uniform .camera_world_position - world_position.xyz;
-    out.world_pos =  (model_matrix * vec4<f32>(in.position, 1.0)).xyz;
+
+    // Assign the clip position and other remainders to the output.
+    out.clip_position = (view_proj * world_position);
+    out.view_vector = camera_world_position - world_position.xyz;
+    out.world_pos = world_position.xyz;
     return out;
 
 }

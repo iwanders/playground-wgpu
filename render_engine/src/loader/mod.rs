@@ -304,6 +304,7 @@ pub fn load_gltf_objects(
         let texture = load_gltf_texture(&context, &image_data);
         textured_samplers.push(crate::texture::SampledTexture {
             sampler: device.create_sampler(&wgpu::SamplerDescriptor {
+                // S(U) and T(V): https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture
                 address_mode_u: sampler.wrap_s().to_wgpu(),
                 address_mode_v: sampler.wrap_t().to_wgpu(),
                 address_mode_w: sampler.wrap_t().to_wgpu(), // no w in gltf?

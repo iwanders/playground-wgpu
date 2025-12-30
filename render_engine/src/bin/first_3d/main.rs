@@ -35,14 +35,15 @@ impl LocalState {
 }
 impl simple_start::Drawable for LocalState {
     fn initialise(&mut self, state: &mut State) -> Result<(), anyhow::Error> {
-        state.camera.camera.eye = vec3(-1.368807, 2.1078022, 0.92118156);
+        state.camera.camera.eye = vec3(-1.068807, 1.1078022, 0.4118156);
 
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         // let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
-        let gltf_path = std::path::PathBuf::from("../../assets/DamagedHelmet.glb");
+        // let gltf_path = std::path::PathBuf::from("../../assets/CompareNormal.glb");
+        // let gltf_path = std::path::PathBuf::from("../../assets/DamagedHelmet.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
 
-        // let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
+        let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
 
         let mesh_objects_textured =
             simple_start::loader::load_gltf_objects(&state.context, &gltf_path)?;
@@ -113,27 +114,26 @@ impl simple_start::Drawable for LocalState {
 
         let l1_theta: f32 = 0.3;
         let l2_theta: f32 = 2.3;
-        let radius = 0.2;
+        let radius = 2.0;
 
         let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
             simple_start::lights::Light::directional() // sun left
                 .with_direction([-1.0, -1.0, 0.5])
                 .with_intensity(0.2)
-                .with_color([0.1, 0.1, 0.1]),
-            simple_start::lights::Light::directional() // sun right
-                .with_direction([1.0, 1.0, 1.0])
-                .with_intensity(1.0)
-                .with_color([0.1, 0.1, 0.1]),
+                .with_color([0.1, 0.3, 0.1]),
+            // simple_start::lights::Light::directional() // sun right
+            //     .with_direction([1.0, 1.0, 1.0])
+            //     .with_intensity(0.1)
+            //     .with_color([0.1, 0.1, 0.1]),
             simple_start::lights::Light::omni() // Orbitter red
                 .with_position([l1_theta.cos() * radius, l1_theta.sin() * radius, 0.1])
-                .with_intensity(5.0)
-                .with_color([2.0, 1.3, 0.3]),
+                .with_intensity(0.3)
+                .with_color([1.0, 0.0, 0.3]),
             simple_start::lights::Light::omni() // Orbitter green
                 .with_position([l2_theta.cos() * radius, l2_theta.sin() * radius, 0.1])
-                .with_intensity(5.0)
-                .with_color([1.3, 1.3, 0.1]),
+                .with_intensity(0.1)
+                .with_color([1.0, 1.0, 0.1]),
         ]);
-
         let gpu_lights = lights.to_gpu();
 
         let destination = state.target.destination()?;
