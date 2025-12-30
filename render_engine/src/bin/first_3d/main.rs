@@ -40,10 +40,10 @@ impl simple_start::Drawable for LocalState {
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         // let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/CompareNormal.glb");
-        // let gltf_path = std::path::PathBuf::from("../../assets/DamagedHelmet.glb");
+        let gltf_path = std::path::PathBuf::from("../../assets/DamagedHelmet.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
 
-        let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
+        // let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
 
         let mesh_objects_textured =
             simple_start::loader::load_gltf_objects(&state.context, &gltf_path)?;
@@ -267,8 +267,8 @@ async fn async_main() -> std::result::Result<(), anyhow::Error> {
         let drawable = LocalState::new();
         simple_start::async_render(drawable, 1024, 768, "/tmp/first_3d.png").await?;
     }
-    let drawable = LocalState::new();
-    simple_start::async_main(drawable).await?;
+    // let drawable = LocalState::new();
+    // simple_start::async_main(drawable).await?;
 
     Ok(())
 }
