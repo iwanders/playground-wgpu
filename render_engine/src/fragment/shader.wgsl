@@ -442,8 +442,8 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
 
     color += emission;
 
-   	// let corrected_color= color;
-    let corrected_color = pow(color, vec3f(2.2));
+   	let corrected_color = color;
+    // let corrected_color = pow(color, vec3f(2.2));
     output.color = vec4<f32>(corrected_color, 1.0);
     return output;
 }

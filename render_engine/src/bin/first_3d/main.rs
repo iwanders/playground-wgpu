@@ -137,6 +137,8 @@ impl simple_start::Drawable for LocalState {
         // let l2_theta: f32 = 2.3;
         let radius = 2.0;
 
+        // Lights from gltf sampler viewer;
+
         let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
             simple_start::lights::Light::directional() // sun left
                 .with_direction([0.0, 0.0, -1.0]) // vector that denotes direction of light movement, so -1.0 is from straight up.
@@ -170,6 +172,25 @@ impl simple_start::Drawable for LocalState {
             //     .with_position([l2_theta.cos() * radius, l2_theta.sin() * radius, 0.1])
             //     .with_intensity(0.5)
             //     .with_color([1.0, 1.0, 0.1]),
+        ]);
+
+        // https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/e6b052db89fb2adbaf31da4565a08265c96c2b9f/source/Renderer/renderer.js#L76-L86
+        // Two lights,
+        //   a fill light from quat.fromValues(-0.8535534, 0.146446645, -0.353553325, -0.353553444), at intensity 0.5, infinite range.
+        //   a directional light from  quat.fromValues(-0.3535534, -0.353553385, -0.146446586, 0.8535534), at intsenity 1.0, infinite range.
+        let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
+            simple_start::lights::Light::directional()
+                .with_direction(
+                    glam::Quat::from_array([-0.8535534, 0.146446645, -0.353553325, -0.353553444])
+                        * vec3(0.0, 0.0, -1.0),
+                )
+                .with_intensity(0.5),
+            simple_start::lights::Light::directional()
+                .with_direction(
+                    glam::Quat::from_array([-0.3535534, -0.353553385, -0.146446586, 0.8535534])
+                        * vec3(0.0, 0.0, -1.0),
+                )
+                .with_intensity(1.0),
         ]);
         let gpu_lights = lights.to_gpu();
 

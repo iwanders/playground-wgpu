@@ -1,4 +1,4 @@
-use glam::{Vec3, Vec3A};
+use glam::{Vec3, Vec3A, vec3};
 use wgpu::util::DeviceExt as _;
 use zerocopy::{Immutable, IntoBytes};
 
@@ -31,12 +31,16 @@ impl Light {
     pub fn omni() -> Self {
         Light {
             light_type: LightType::Omni,
+            color: vec3(1.0, 1.0, 1.0),
+            intensity: 1.0,
             ..Default::default()
         }
     }
     pub fn directional() -> Self {
         Light {
             light_type: LightType::Directional,
+            color: vec3(1.0, 1.0, 1.0),
+            intensity: 1.0,
             ..Default::default()
         }
     }
@@ -49,6 +53,7 @@ impl Light {
         self.direction = direction.into();
         self
     }
+
     pub fn with_color<P: Into<Vec3>>(mut self, color: P) -> Self {
         self.color = color.into();
         self
