@@ -45,7 +45,7 @@ impl simple_start::Drawable for LocalState {
 
         // let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
 
-        let mesh_objects_textured =
+        let mut mesh_objects_textured =
             simple_start::loader::load_gltf_objects(&state.context, &gltf_path)?;
 
         let (document, buffers, images) = gltf::import(gltf_path)?;
@@ -88,6 +88,17 @@ impl simple_start::Drawable for LocalState {
 
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
         mesh_object.replace_gpu_data();
+
+        mesh_objects_textured.clear();
+        mesh_objects_textured.push(MeshObjectTextured::new(
+            state.context.clone(),
+            MeshObject::new(
+                state.context.clone(),
+                simple_start::vertex::mesh::CpuMesh::axis_frame().to_gpu(&state.context.clone()),
+            )
+            .with_single_transform(&Mat4::IDENTITY),
+            &[],
+        ));
 
         // let mesh_object_textured =
         //     MeshObjectTextured::new_simple(state.context.clone(), mesh_object.clone(), &textures);

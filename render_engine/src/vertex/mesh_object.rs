@@ -1,6 +1,7 @@
 use super::mesh::GpuMesh;
 use crate::context::Context;
 use glam::{Mat4, Vec3};
+use log::warn;
 use wgpu::util::DeviceExt as _;
 use zerocopy::{Immutable, IntoBytes};
 
@@ -119,6 +120,11 @@ impl MeshObject {
         self.instances.resize(1, Default::default());
         self.instances[0] = *transform;
     }
+    pub fn with_single_transform(mut self, transform: &Mat4) -> Self {
+        self.instances.resize(1, Default::default());
+        self.instances[0] = *transform;
+        self
+    }
 
     /// Set the object to have a this set of transforms, does NOT update the gpu data.
     pub fn set_transforms(&mut self, transform: &[Mat4]) {
@@ -191,6 +197,9 @@ impl MeshObject {
             0,
             0..self.instances.len() as u32,
         );
+        if self.instances.is_empty() {
+            warn!("Rendering group with no instances: {}", self.gpu_mesh.name);
+        }
         render_pass.pop_debug_group();
     }
 

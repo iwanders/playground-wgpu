@@ -91,6 +91,7 @@ impl MeshObjectTextured {
         res
     }
     pub fn replace_gpu_data(&mut self) {
+        self.mesh_object.replace_gpu_data();
         self.gpu_textures = self.cpu_textures.to_gpu();
     }
 

@@ -1,4 +1,4 @@
-use glam::{Vec2, Vec3, Vec3A, Vec4};
+use glam::{Vec2, Vec3, Vec3A, Vec4, vec3, vec4};
 use wgpu::util::DeviceExt as _;
 use zerocopy::IntoBytes as _;
 
@@ -42,6 +42,61 @@ impl CpuMesh {
         }
     }
 
+    pub fn axis_frame() -> Self {
+        fn make_axis_polys(axis: usize, alternate_axis: isize) -> [Vec3; 3] {
+            let mut r = [
+                vec3(0.0, 0.0, 0.0),
+                vec3(0.0, 0.0, 0.0),
+                vec3(0.0, 0.0, 0.0),
+            ];
+            r[1][axis] = 1.0;
+            if alternate_axis <= 0 {
+                // Modulo to allow expressing -0 and 0 with 4 and -4
+                r[0][alternate_axis.abs() as usize % 3] = 0.1;
+            } else {
+                r[2][alternate_axis as usize % 3] = 0.1;
+            }
+            r
+        }
+        let vertices: [([Vec3; 3], Vec4); _] = [
+            // x axis, red
+            (make_axis_polys(0, 1), vec4(1.0, 0.0, 0.0, 1.0)),
+            // x axis back, red
+            (make_axis_polys(0, -1), vec4(1.0, 0.0, 0.0, 1.0)),
+            // y axis, green
+            (make_axis_polys(1, 2), vec4(0.0, 1.0, 0.0, 1.0)),
+            (make_axis_polys(1, -2), vec4(0.0, 1.0, 0.0, 1.0)),
+            // z axis, blue, 4 to work around -0 and 0 being identical for integers.
+            (make_axis_polys(2, 3), vec4(0.0, 0.0, 1.0, 1.0)),
+            (make_axis_polys(2, -3), vec4(0.0, 0.0, 1.0, 1.0)),
+        ];
+
+        let position: Vec<Vec3> = vertices
+            .iter()
+            .map(|(p, _c)| p.iter())
+            .flatten()
+            .copied()
+            .collect();
+        let colors = vertices
+            .iter()
+            .map(|(_p, c)| [c, c, c])
+            .flatten()
+            .copied()
+            .collect();
+
+        let mut axis_mesh = Self {
+            index: (0..position.len() as u32).collect(),
+            position,
+            color: Some(colors),
+            normal: None,
+            uv: None,
+            name: Some("coordinate_frame".to_owned()),
+            tangents: None,
+        };
+        axis_mesh.calculate_normals();
+        axis_mesh
+    }
+
     /// Set the useful name for renderdoc and diagnostic errors.
     pub fn with_name(mut self, name: &str) -> Self {
         self.name = Some(name.to_owned());
@@ -56,6 +111,21 @@ impl CpuMesh {
         }
         self.tangents = Some(vec![Default::default(); self.position.len()]);
         bevy_mikktspace::generate_tangents(self)
+    }
+
+    pub fn calculate_normals(&mut self) {
+        let mut normals: Vec<Vec3A> = vec![Default::default(); self.position.len()];
+        for poly_indices in self.index.chunks(3) {
+            let a = self.position[poly_indices[0] as usize];
+            let b = self.position[poly_indices[1] as usize];
+            let c = self.position[poly_indices[2] as usize];
+            let this_normal = (b - a).cross(c - a); // Outward or inward normal? :/
+            let this_normal = this_normal.normalize();
+            normals[poly_indices[0] as usize] = this_normal.into();
+            normals[poly_indices[1] as usize] = this_normal.into();
+            normals[poly_indices[2] as usize] = this_normal.into();
+        }
+        self.normal = Some(normals);
     }
 
     pub fn get_name_prefix(&self) -> String {
@@ -97,6 +167,9 @@ impl CpuMesh {
                 usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::STORAGE,
             });
         let index_length = self.index.len() as u32;
+
+        // No normals = no lighting... if there are no normals, build some normals.
+        // Should we ensure all meshes just always have normals?
 
         let normal_data = self
             .normal
