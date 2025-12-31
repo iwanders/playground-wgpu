@@ -212,7 +212,11 @@ impl TransformToGlam for gltf::scene::Transform {
     }
 }
 
-pub fn load_gltf_texture(context: &crate::Context, image: &gltf::image::Data) -> wgpu::Texture {
+pub fn load_gltf_texture(
+    context: &crate::Context,
+    image: &gltf::image::Data,
+    texture_format: wgpu::TextureFormat,
+) -> wgpu::Texture {
     // Do we need to do any color space mapping?
     let rgba8_image = gltf_to_rgba8unorm(image);
     let texture_size = wgpu::Extent3d {
@@ -226,7 +230,9 @@ pub fn load_gltf_texture(context: &crate::Context, image: &gltf::image::Data) ->
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
+        // format: wgpu::TextureFormat::Rgba8Unorm,
+        format: texture_format,
+        // format: wgpu::TextureFormat::Rgba8UnormSrgb,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         label: None, // TODO
         view_formats: &[],
@@ -254,12 +260,49 @@ pub fn load_gltf_texture(context: &crate::Context, image: &gltf::image::Data) ->
     texture
 }
 
+fn load_sampled_texture(
+    context: &crate::Context,
+    texture: &gltf::Texture<'_>,
+    texture_format: wgpu::TextureFormat,
+    buffers: &[gltf::buffer::Data],
+) -> anyhow::Result<crate::texture::SampledTexture> {
+    let sampler = texture.sampler();
+    let image_source = texture.source();
+    let image_data = gltf::image::Data::from_source(image_source.source(), None, buffers)?;
+    println!(
+        "image data: {:?}, {:?}",
+        image_data.format, image_data.width,
+    );
+    let texture = load_gltf_texture(&context, &image_data, texture_format);
+    Ok(crate::texture::SampledTexture {
+        sampler: context.device.create_sampler(&wgpu::SamplerDescriptor {
+            // S(U) and T(V): https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture
+            address_mode_u: sampler.wrap_s().to_wgpu(),
+            address_mode_v: sampler.wrap_t().to_wgpu(),
+            address_mode_w: sampler.wrap_t().to_wgpu(), // no w in gltf?
+            mag_filter: sampler
+                .mag_filter()
+                .unwrap_or(gltf::texture::MagFilter::Linear)
+                .to_wgpu(), // Nearest
+            min_filter: sampler
+                .min_filter()
+                .unwrap_or(gltf::texture::MinFilter::Linear)
+                .to_wgpu(),
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        }),
+        texture: texture,
+        texture_type: crate::texture::TextureType::None,
+    })
+}
+
 pub fn load_gltf_objects(
     context: &crate::Context,
     gltf_path: &std::path::Path,
 ) -> Result<Vec<MeshObjectTextured>, anyhow::Error> {
     let device = &context.device;
     let (document, buffers, images) = gltf::import(gltf_path)?;
+    info!("document: {document:#?}");
     // This doesn't handle instancing nicely atm... but this is already a non-tested hour long bender.
 
     // Okay, so we have a sampler specification.
@@ -298,37 +341,7 @@ pub fn load_gltf_objects(
     //     .map(|z| load_gltf_texture(&context, z))
     //     .collect();
 
-    let mut textured_samplers = vec![];
-    for texture in document.textures() {
-        let sampler = texture.sampler();
-        let image_source = texture.source();
-        let image_data = gltf::image::Data::from_source(image_source.source(), None, &buffers)?;
-        println!(
-            "image data: {:?}, {:?}",
-            image_data.format, image_data.width,
-        );
-        let texture = load_gltf_texture(&context, &image_data);
-        textured_samplers.push(crate::texture::SampledTexture {
-            sampler: device.create_sampler(&wgpu::SamplerDescriptor {
-                // S(U) and T(V): https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture
-                address_mode_u: sampler.wrap_s().to_wgpu(),
-                address_mode_v: sampler.wrap_t().to_wgpu(),
-                address_mode_w: sampler.wrap_t().to_wgpu(), // no w in gltf?
-                mag_filter: sampler
-                    .mag_filter()
-                    .unwrap_or(gltf::texture::MagFilter::Linear)
-                    .to_wgpu(), // Nearest
-                min_filter: sampler
-                    .min_filter()
-                    .unwrap_or(gltf::texture::MinFilter::Linear)
-                    .to_wgpu(),
-                mipmap_filter: wgpu::FilterMode::Linear,
-                ..Default::default()
-            }),
-            texture: texture,
-            texture_type: crate::texture::TextureType::None,
-        });
-    }
+    let textures_by_index: Vec<_> = document.textures().collect();
 
     // Okay, so now we have the textures & samplers combined at the ready... now, we should be able to mostly iterate
     // through the nodes, fiddle a bit with transforms and when we reach a mesh with a material check its material and
@@ -381,7 +394,14 @@ pub fn load_gltf_objects(
 
                     if let Some(emissive_texture) = this_material.emissive_texture() {
                         let texture_index = emissive_texture.texture().index();
-                        let mut with_sampler = textured_samplers[texture_index].clone();
+                        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_emissivetexture
+                        // is in srgb
+                        let mut with_sampler = load_sampled_texture(
+                            context,
+                            &textures_by_index[texture_index],
+                            wgpu::TextureFormat::Rgba8UnormSrgb,
+                            &buffers,
+                        )?;
                         with_sampler.texture_type = crate::texture::TextureType::Emissive;
                         this_primitive_textures.push(with_sampler);
                     }
@@ -390,7 +410,14 @@ pub fn load_gltf_objects(
                         this_material.pbr_metallic_roughness().base_color_texture()
                     {
                         let texture_index = base_color_texture.texture().index();
-                        let mut with_sampler = textured_samplers[texture_index].clone();
+                        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_basecolortexture
+                        // must be srgb
+                        let mut with_sampler = load_sampled_texture(
+                            context,
+                            &textures_by_index[texture_index],
+                            wgpu::TextureFormat::Rgba8UnormSrgb,
+                            &buffers,
+                        )?;
                         with_sampler.texture_type = crate::texture::TextureType::BaseColor;
                         this_primitive_textures.push(with_sampler);
                     }
@@ -400,7 +427,14 @@ pub fn load_gltf_objects(
                         .metallic_roughness_texture()
                     {
                         let texture_index = metallic_roughness_texture.texture().index();
-                        let mut with_sampler = textured_samplers[texture_index].clone();
+                        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture
+                        // is in linear transform function, so NOT srgb!
+                        let mut with_sampler = load_sampled_texture(
+                            context,
+                            &textures_by_index[texture_index],
+                            wgpu::TextureFormat::Rgba8Unorm,
+                            &buffers,
+                        )?;
                         with_sampler.texture_type = crate::texture::TextureType::MetallicRoughness;
                         this_primitive_textures.push(with_sampler);
                     }
@@ -412,14 +446,28 @@ pub fn load_gltf_objects(
                     //
 
                     if let Some(normal_texture) = this_material.normal_texture() {
+                        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_normaltexture
+                        // Linear transfer function.
                         let texture_index = normal_texture.texture().index();
-                        let mut with_sampler = textured_samplers[texture_index].clone();
+                        let mut with_sampler = load_sampled_texture(
+                            context,
+                            &textures_by_index[texture_index],
+                            wgpu::TextureFormat::Rgba8Unorm,
+                            &buffers,
+                        )?;
                         with_sampler.texture_type = crate::texture::TextureType::Normal;
                         this_primitive_textures.push(with_sampler);
                     }
                     if let Some(occlusion_texture) = this_material.occlusion_texture() {
                         let texture_index = occlusion_texture.texture().index();
-                        let mut with_sampler = textured_samplers[texture_index].clone();
+                        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_occlusiontexture
+                        // Linear transfer function.
+                        let mut with_sampler = load_sampled_texture(
+                            context,
+                            &textures_by_index[texture_index],
+                            wgpu::TextureFormat::Rgba8Unorm,
+                            &buffers,
+                        )?;
                         with_sampler.texture_type = crate::texture::TextureType::Occlusion;
                         this_primitive_textures.push(with_sampler);
                     }

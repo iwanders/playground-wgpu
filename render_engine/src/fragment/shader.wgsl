@@ -161,18 +161,20 @@
 //  When tangents are not specified, client implementations SHOULD calculate tangents using default MikkTSpace algorithms
 //  with the specified vertex positions, normals, and texture coordinates associated with the normal texture.
 //
-//
-//
-//
 // Okay, so just rotating the normals & normal mapping is like... super complex, as described on http://www.mikktspace.com/
 // Reference implementation; https://github.com/mmikk/MikkTSpace
 // The Bevy folks conveniently ported this to a standalone rust implementation.
 //
-// And then we follow GLTF's viewer for the actual calculation guidance, since we're using GLTF models.
+// And then we follow GLTF's viewer for the actual calculation guidance for the normals, since we're using GLTF models.
 // Vertex shader:
 // https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/e6b052db89fb2adbaf31da4565a08265c96c2b9f/source/Renderer/shaders/primitive.vert#L135-L148
 // Fragment shader:
 // https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/e6b052db89fb2adbaf31da4565a08265c96c2b9f/source/Renderer/shaders/material_info.glsl#L172-L175
+//
+// Do we need tone mapping?
+// https://www.khronos.org/news/press/khronos-pbr-neutral-tone-mapper-released-for-true-to-life-color-rendering-of-3d-products
+//
+//
 // ------------------------------------------------------------------------------------
 
 
@@ -200,7 +202,7 @@ const DEBUG_OUTPUT_NORMALS: bool = false;
 /// And its conversion function.
 fn normal_to_display_color(normal: vec3f) -> CommonFragmentOutput{
     var output: CommonFragmentOutput;
-    output.color = vec4f(normal * 0.5 + 0.5, 1.0);
+    output.color = vec4f(srgb_to_linear(normal * 0.5 + 0.5), 1.0);
     return output;
 }
 
@@ -282,7 +284,7 @@ fn SurfaceLightParameters_calculate(me: ptr<function, SurfaceLightParameters>) -
 
     let specular_brdf = V * D;
 
-    let color = params.albedo * params.occlusion;
+    let color = params.albedo;
     let c_diff = mix(color, vec3f(0.0, 0.0, 0.0), params.metallic_factor);
     let f0 = mix(vec3f(0.04, 0.04, 0.04), color, params.metallic_factor);
 
@@ -295,7 +297,7 @@ fn SurfaceLightParameters_calculate(me: ptr<function, SurfaceLightParameters>) -
     let f_diffuse = (1.0 - F) * diffuse_brdf  ;
     let f_specular = F * specular_brdf  ;
     let material = (f_diffuse + f_specular);
-    return material * (params.light_color * params.light_intensity);
+    return material * (params.light_color * params.light_intensity * params.occlusion);
 
     /*
     let lambertian = max(dot(params.light_dir, params.normal), 0.0);
@@ -439,12 +441,12 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
 
    	}
 
-    color *= occlusion;
+    // color *= occlusion;
 
     color += emission;
 
    	let corrected_color = color;
-    // let corrected_color = pow(color, vec3f(2.2));
+    // let corrected_color = srgb_to_linear(color) ;
     output.color = vec4<f32>(corrected_color, 1.0);
     return output;
 }

@@ -136,6 +136,20 @@ struct TextureUniform {
 const PI_F: f32 = 3.141592653589793;
 
 
+
+//-----------------------------------------------------
+// Color space utils.
+// https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/e6b052db89fb2adbaf31da4565a08265c96c2b9f/source/Renderer/shaders/tonemapping.glsl#L26
+const GAMMA: f32 = 2.2;
+const INV_GAMMA: f32 = 1.0 / GAMMA;
+fn linear_to_srgb(color: vec3f) -> vec3f {
+    return pow(color, vec3(INV_GAMMA));
+}
+fn srgb_to_linear(color: vec3f) -> vec3f {
+    return  pow(color, vec3f(GAMMA));
+}
+
+
 //-----------------------------------------------------
 // Check https://www.w3.org/TR/WGSL/#numeric-builtin-functions first for built in functions.
 // Utility functions

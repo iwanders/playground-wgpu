@@ -25,7 +25,6 @@ use gltf;
 
 use simple_start::vertex::mesh_object::MeshObject;
 struct PersistentState {
-    mesh_object: MeshObject,
     mesh_objects_textured: Vec<MeshObjectTextured>,
     depth_format: wgpu::TextureFormat,
     material: Option<simple_start::fragment::PhongLikeMaterial>,
@@ -53,6 +52,7 @@ impl simple_start::Drawable for LocalState {
         let mut mesh_objects_textured =
             simple_start::loader::load_gltf_objects(&state.context, &gltf_path)?;
 
+        /*
         let (document, buffers, images) = gltf::import(gltf_path)?;
         // info!("document: {document:#?}");
         let textures: Vec<wgpu::Texture> = images
@@ -91,9 +91,10 @@ impl simple_start::Drawable for LocalState {
         //     many_transforms.len() * poly_count_per_mesh
         // );
 
-        pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
         mesh_object.replace_gpu_data();
+        */
 
+        pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
         // mesh_objects_textured.clear();
         if true {
             mesh_objects_textured.push(MeshObjectTextured::new(
@@ -112,7 +113,6 @@ impl simple_start::Drawable for LocalState {
         //     MeshObjectTextured::new_simple(state.context.clone(), mesh_object.clone(), &textures);
 
         self.persistent = Some(PersistentState {
-            mesh_object,
             mesh_objects_textured,
             material: None,
             depth_format: DEPTH_FORMAT,
