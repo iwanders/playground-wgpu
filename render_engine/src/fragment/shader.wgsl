@@ -282,9 +282,9 @@ fn SurfaceLightParameters_calculate(me: ptr<function, SurfaceLightParameters>) -
 
     let specular_brdf = V * D;
 
-
-    let c_diff = mix(params.albedo, vec3f(0.0, 0.0, 0.0), params.metallic_factor);
-    let f0 = mix(vec3f(0.04, 0.04, 0.04), params.albedo, params.metallic_factor);
+    let color = params.albedo * params.occlusion;
+    let c_diff = mix(color, vec3f(0.0, 0.0, 0.0), params.metallic_factor);
+    let f0 = mix(vec3f(0.04, 0.04, 0.04), color, params.metallic_factor);
 
 
     let vh = dot(params.view_dir, params.half_dir);
@@ -358,7 +358,8 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
     var occlusion = 1.0;
     if (texture_meta.occlusion != 0){
         let occlusion_sample = (textureSample(texture[texture_meta.occlusion], texture_sampler[texture_meta.occlusion], input.uv_pos)).xyz;
-        occlusion = occlusion_sample.r;
+        let occlusion_strength = 1.0;
+        occlusion = (1.0 + occlusion_strength * (occlusion_sample.r - 1.0));
     }
 
     // Global factor.
