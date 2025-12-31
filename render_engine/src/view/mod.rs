@@ -51,15 +51,7 @@ impl ViewUniform {
 
 pub trait CameraView {
     fn to_view_matrix(&self) -> Mat4;
-    fn to_camera_uniform(&self) -> ViewUniform {
-        let view_proj = self.to_view_matrix();
-        let camera_world_position = view_proj.col(3).truncate().into();
-        ViewUniform {
-            view_proj,
-            camera_world_position,
-            _pad: Default::default(),
-        }
-    }
+    fn to_camera_uniform(&self) -> ViewUniform;
 }
 
 #[cfg(test)]

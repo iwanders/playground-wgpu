@@ -75,4 +75,8 @@ impl super::CameraView for OrbitCamera {
     fn to_view_matrix(&self) -> Mat4 {
         self.camera.to_view_projection_matrix()
     }
+
+    fn to_camera_uniform(&self) -> super::ViewUniform {
+        self.camera.to_camera_uniform()
+    }
 }

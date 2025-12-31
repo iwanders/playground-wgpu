@@ -57,4 +57,15 @@ impl super::CameraView for Camera {
     fn to_view_matrix(&self) -> Mat4 {
         self.to_view_projection_matrix()
     }
+    fn to_camera_uniform(&self) -> super::ViewUniform {
+        {
+            let view_proj = self.to_view_matrix();
+            let camera_world_position = self.eye.into();
+            super::ViewUniform {
+                view_proj,
+                camera_world_position,
+                _pad: Default::default(),
+            }
+        }
+    }
 }
