@@ -44,6 +44,7 @@ impl Light {
         self.position = position.into();
         self
     }
+    /// vector that denotes direction of light movement, so -1.0 is from straight up.
     pub fn with_direction<P: Into<Vec3A>>(mut self, direction: P) -> Self {
         self.direction = direction.into();
         self

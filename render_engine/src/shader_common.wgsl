@@ -59,12 +59,14 @@ struct Light {
      @location(4) light_type: LightType,
      // hardness_kd_ks: vec3f,
 };
+
+// Light direction is from at_point towards the light.
 fn Light_direction(me: ptr<function,Light>,  at_point: vec3<f32>) -> vec3<f32> {
     switch((*me).light_type)
     {
         case LIGHT_TYPE_DIRECTIONAL:
             {
-                return normalize((*me).direction);
+                return normalize(-(*me).direction);
             }
         case LIGHT_TYPE_OMNI:
             {

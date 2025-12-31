@@ -164,6 +164,11 @@
 // Reference implementation; https://github.com/mmikk/MikkTSpace
 // The Bevy folks conveniently ported this to a standalone rust implementation.
 //
+// And then we follow GLTF's viewer for the actual calculation guidance, since we're using GLTF models.
+// Vertex shader:
+// https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/e6b052db89fb2adbaf31da4565a08265c96c2b9f/source/Renderer/shaders/primitive.vert#L135-L148
+// Fragment shader:
+// https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/e6b052db89fb2adbaf31da4565a08265c96c2b9f/source/Renderer/shaders/material_info.glsl#L172-L175
 // ------------------------------------------------------------------------------------
 
 
@@ -186,11 +191,18 @@ var texture_sampler : binding_array<sampler>;
 var<storage, read> texture_uniform : array<TextureUniform>;
 
 
-// Output normals as the color of the mesh.
-const DEBUG_OUTPUT_NORMALS: bool = true;
+// If this is true, the mesh is shaded with the shading normal values.
+const DEBUG_OUTPUT_NORMALS: bool = false;
+/// And its conversion function.
 fn normal_to_display_color(normal: vec3f) -> CommonFragmentOutput{
     var output: CommonFragmentOutput;
     output.color = vec4f(normal * 0.5 + 0.5, 1.0);
+    return output;
+}
+
+fn vec3f_to_out(z: vec3f) -> CommonFragmentOutput{
+    var output: CommonFragmentOutput;
+    output.color = vec4f(z, 1.0);
     return output;
 }
 
@@ -266,20 +278,21 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
         let global_normal_scale = 1.0;
         let normal_scaled = (normal_sampled * 2.0 - vec3f(1.0)) * vec3f(global_normal_scale, global_normal_scale, 1.0);
         let normal_scaled_normalized = normalize(normal_scaled);
+
         // Finally, use the tangent, bitangent and normal that we created in the vertex schader:
-
         normal = normalize(mat3x3f(input.tangent_w, input.bitangent_w, input.normal_w) * normal_scaled_normalized);
-
     }
 
     if DEBUG_OUTPUT_NORMALS {
         return normal_to_display_color(normal);
     }
+    // Whew, we now have working normals...
 
-   	let light_count : u32 = arrayLength(&light_uniform);
+    let light_count : u32 = arrayLength(&light_uniform);
 
+    // View vector is from the contact point towards the camera.
    	let view_vector = normalize(input.view_vector);
-
+    // return vec3f_to_out(normalize(camera_uniform[0].camera_world_position));
 
    	var color = vec3<f32>(0.0);
    	for (var i: u32 = 0; i < light_count; i++) {
@@ -289,44 +302,46 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
   		    continue;
   		}
 
-        // Obtain light properties.
+        // Light direction is from input.world_pos towards the light.
   		let light_direction = Light_direction(&this_light, input.world_pos);
+        let half_dir = normalize(light_direction + view_vector);
+
   		let light_color = this_light.color;
-  		let light_intensity = this_light.intensity; // should be scaled by distance.
+  		let light_intensity = this_light.intensity;
 
-        // Ehh super not right here. lol.
-        var kd = roughness_factor;
-        var ks = metallic_factor;
+        //
+        // var kd = roughness_factor;
+        // var ks = metallic_factor;
+        var kd = 0.5;
+        var ks = 0.9;
 
-        var specular = 0.0;
         let lambertian = max(dot(light_direction, normal), 0.0);
         if lambertian > 0.0 {
-            let view_direction = normalize(input.view_vector);
-            let half_dir = normalize(light_direction + view_direction);
             let spec_angle = max(dot(half_dir, normal), 0.0);
-            specular = pow(spec_angle, 16.0); // from wikipedia...
+            // specular = pow(spec_angle, 16.0); // from wikipedia...
         }
-
 
   		// let kd = light_uniform.lights[i].hardness_kd_ks.y; // diffuse effect
   		// let ks = light_uniform.lights[i].hardness_kd_ks.z; // specular effect
   		// let R = reflect(light_direction, normal); // equivalent to 2.0 * dot(N, L) * N - L
 
-  		let diffuse =  max(0.0, dot(light_direction, normal)) * light_color ;
+  		let diffuse =  max(0.0, dot(light_direction, normal)) * light_color *light_intensity;
 
   		// We clamp the dot product to 0 when it is negative
-  		// let RoV = min(max(0.0, dot(R, view_vector)), 0.5);
-  		// let specular = pow(RoV, hardness);
-        // let specular = 0.1;
+        let R = reflect(-light_direction, normal);
+  		let RoV = max(0.0, dot(R, view_vector));
+        let hardness = 20.0;
+  		let specular = pow(RoV, hardness);
 
-  		color += current_color * (kd * diffuse + ks * specular);
+  		color += current_color * (kd * diffuse   + ks * specular);
    	}
 
     color *= occlusion;
 
-    color += emission;
+    color += emission ;
 
-   	let corrected_color= color;
+   	// let corrected_color= color;
+    let corrected_color = pow(color, vec3f(2.2));
     output.color = vec4<f32>(corrected_color, 1.0);
     return output;
 }

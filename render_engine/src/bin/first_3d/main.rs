@@ -112,27 +112,41 @@ impl simple_start::Drawable for LocalState {
         let device = &state.context.device;
         let persistent = self.persistent.as_mut().unwrap();
 
-        let l1_theta: f32 = 0.3;
-        let l2_theta: f32 = 2.3;
+        let l1_theta = simple_start::get_angle_f32(1.2);
+        let l2_theta = -simple_start::get_angle_f32(0.7) + 3.14;
+        // let l1_theta: f32 = 0.3;
+        // let l2_theta: f32 = 2.3;
         let radius = 2.0;
 
         let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
             simple_start::lights::Light::directional() // sun left
-                .with_direction([-1.0, -1.0, 0.5])
-                .with_intensity(0.2)
-                .with_color([0.1, 0.3, 0.1]),
-            // simple_start::lights::Light::directional() // sun right
-            //     .with_direction([1.0, 1.0, 1.0])
-            //     .with_intensity(0.1)
-            //     .with_color([0.1, 0.1, 0.1]),
-            simple_start::lights::Light::omni() // Orbitter red
-                .with_position([l1_theta.cos() * radius, l1_theta.sin() * radius, 0.1])
-                .with_intensity(0.3)
-                .with_color([1.0, 0.0, 0.3]),
-            simple_start::lights::Light::omni() // Orbitter green
-                .with_position([l2_theta.cos() * radius, l2_theta.sin() * radius, 0.1])
-                .with_intensity(0.1)
-                .with_color([1.0, 1.0, 0.1]),
+                .with_direction([0.0, 0.0, -1.0]) // vector that denotes direction of light movement, so -1.0 is from straight up.
+                .with_intensity(0.5)
+                .with_color([1.0, 1.0, 1.0]),
+            simple_start::lights::Light::omni() // on the top of the helmet, to the right.
+                .with_position([0.0, 1.0, 1.0])
+                .with_intensity(1.0)
+                .with_color([1.0, 1.0, 1.0]),
+            simple_start::lights::Light::omni() // Damaged side.
+                .with_position([-2.0, 0.0, 0.0])
+                .with_intensity(1.0)
+                .with_color([1.0, 1.0, 1.0]),
+            simple_start::lights::Light::omni() // The non damaged side.
+                .with_position([2.0, 0.0, 0.0])
+                .with_intensity(0.5)
+                .with_color([1.0, 1.0, 1.0]),
+            // simple_start::lights::Light::omni() // Orbitter red
+            //     .with_position([3.0, 0.0, 0.0])
+            //     .with_intensity(0.5)
+            //     .with_color([1.0, 1.0, 1.0]),
+            // simple_start::lights::Light::omni() // Orbitter red
+            //     .with_position([l1_theta.cos() * radius, l1_theta.sin() * radius, 0.1])
+            //     .with_intensity(0.5)
+            //     .with_color([1.0, 0.0, 0.3]),
+            // simple_start::lights::Light::omni() // Orbitter green
+            //     .with_position([l2_theta.cos() * radius, l2_theta.sin() * radius, 0.1])
+            //     .with_intensity(0.5)
+            //     .with_color([1.0, 1.0, 0.1]),
         ]);
         let gpu_lights = lights.to_gpu();
 
