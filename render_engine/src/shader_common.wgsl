@@ -60,7 +60,7 @@ struct Light {
      // hardness_kd_ks: vec3f,
 };
 
-// Light direction is from at_point towards the light.
+/// Light direction is from at_point towards the light.
 fn Light_direction(me: ptr<function,Light>,  at_point: vec3<f32>) -> vec3<f32> {
     switch((*me).light_type)
     {
@@ -75,6 +75,26 @@ fn Light_direction(me: ptr<function,Light>,  at_point: vec3<f32>) -> vec3<f32> {
         default :
             {
                 return vec3<f32>(0.0f, 0.0f, 0.0f);
+            }
+    }
+}
+/// Determines the light intensity at a certain point for this light, accounting for falloff.
+fn Light_intensity(me: ptr<function,Light>,  at_point: vec3<f32>) -> f32 {
+    switch((*me).light_type)
+    {
+        case LIGHT_TYPE_OMNI:
+            {
+                // This falls off...
+                let distance = length((*me).position - at_point);
+                // This is... well not ideal, it becomes very very large when the light is close, and also doesn't
+                // take into account anything like a light range, or other falloff properties, but it is good enough
+                // for the simple point lights I have right now.
+                let remaining = 1.0 / (distance * distance + 0.01);
+                return (*me).intensity * remaining;
+            }
+        default :
+            {
+                return (*me).intensity;
             }
     }
 }
@@ -111,9 +131,30 @@ struct TextureUniform {
 // @binding(TEXTURE_UNIFORM_META) @group(TEXTURE_UNIFORM_SET)
 // var<storage, read> texture_uniform : array<TextureUniform>;
 
+//-----------------------------------------------------
+// Constants
+const PI_F: f32 = 3.141592653589793;
 
 
 //-----------------------------------------------------
+// Check https://www.w3.org/TR/WGSL/#numeric-builtin-functions first for built in functions.
+// Utility functions
+fn heaviside(a: f32) -> f32 {
+    // Heaviside: 1.0 if x > 0, 0.0 if x <= 0
+    // Built in step(edge, x); Returns 1.0 if edge ≤ x, and 0.0 otherwise. Component-wise when T is a vector.
+    // bah.
+    if (a > 0) {
+        return 1.0;
+    } else {
+        return 0.0;
+    }
+}
+
+
+//-----------------------------------------------------
+// Third party functions
+//
+//
 // This inverts a 4x4 matrix numerically. It's less than ideal, we are almost always inverting homogeneous matrices that
 // could be inverted by transposing R and doing -R * v, but the scaling (mostly non-uniform scaling) makes this harder.
 // It should still be possible to do something that's more elegant though, by identifying the individual scale components

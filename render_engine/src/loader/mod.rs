@@ -341,7 +341,7 @@ pub fn load_gltf_objects(
     struct Stack {
         transform: Mat4,
         index: usize,
-    };
+    }
     let mut stack = std::collections::VecDeque::new();
     stack.push_back(Stack {
         transform: Mat4::IDENTITY,

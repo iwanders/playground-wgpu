@@ -15,8 +15,13 @@ use gltf;
 //
 // Only instanced meshes, if you have a single mesh the instance count is just zero.
 //
-//
-//
+
+/*
+
+    LUF: Left (x, red), Up (y, green), Front (z, blue)
+
+
+*/
 
 use simple_start::vertex::mesh_object::MeshObject;
 struct PersistentState {
@@ -90,15 +95,18 @@ impl simple_start::Drawable for LocalState {
         mesh_object.replace_gpu_data();
 
         // mesh_objects_textured.clear();
-        mesh_objects_textured.push(MeshObjectTextured::new(
-            state.context.clone(),
-            MeshObject::new(
+        if true {
+            mesh_objects_textured.push(MeshObjectTextured::new(
                 state.context.clone(),
-                simple_start::vertex::mesh::CpuMesh::axis_frame().to_gpu(&state.context.clone()),
-            )
-            .with_single_transform(&Mat4::IDENTITY),
-            &[],
-        ));
+                MeshObject::new(
+                    state.context.clone(),
+                    simple_start::vertex::mesh::CpuMesh::axis_frame()
+                        .to_gpu(&state.context.clone()),
+                )
+                .with_single_transform(&Mat4::IDENTITY),
+                &[],
+            ));
+        }
 
         // let mesh_object_textured =
         //     MeshObjectTextured::new_simple(state.context.clone(), mesh_object.clone(), &textures);
@@ -145,6 +153,10 @@ impl simple_start::Drawable for LocalState {
             simple_start::lights::Light::omni() // The non damaged side.
                 .with_position([2.0, 0.0, 0.0])
                 .with_intensity(0.5)
+                .with_color([1.0, 1.0, 1.0]),
+            simple_start::lights::Light::omni() // back side of helm
+                .with_position([0.0, 1.0, -2.0])
+                .with_intensity(1.0)
                 .with_color([1.0, 1.0, 1.0]),
             // simple_start::lights::Light::omni() // Orbitter red
             //     .with_position([3.0, 0.0, 0.0])
@@ -249,7 +261,7 @@ impl simple_start::Drawable for LocalState {
             let mut render_pass = encoder.begin_render_pass(&render_pass_desc);
             // Setup
             render_pass.set_pipeline(&material.render_pipeline);
-            println!("camera: { :?}", state.camera);
+            // println!("camera: { :?}", state.camera);
             state
                 .camera
                 .to_camera_uniform()

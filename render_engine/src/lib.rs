@@ -239,7 +239,7 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
                 let _ = size;
-                error!("Resize happened");
+                info!("Resize happened");
                 state.is_surface_configured = state.target.reconfigure();
             }
             WindowEvent::RedrawRequested => {

@@ -149,6 +149,7 @@
 // GLTF also has a section on microfacet surfaces:
 //  https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#microfacet-surfaces
 // Oh, and an sample implementation; https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#implementation
+// linear to srgb; https://github.com/KhronosGroup/glTF/issues/697#issuecomment-257186564 ? hmm..?
 //
 //
 // Normals are another problem:
@@ -159,6 +160,9 @@
 //  https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#foreword:~:text=When%20tangents%20are%20not%20specified%2C%20client%20implementations%20SHOULD%20calculate%20tangents
 //  When tangents are not specified, client implementations SHOULD calculate tangents using default MikkTSpace algorithms
 //  with the specified vertex positions, normals, and texture coordinates associated with the normal texture.
+//
+//
+//
 //
 // Okay, so just rotating the normals & normal mapping is like... super complex, as described on http://www.mikktspace.com/
 // Reference implementation; https://github.com/mmikk/MikkTSpace
@@ -191,7 +195,7 @@ var texture_sampler : binding_array<sampler>;
 var<storage, read> texture_uniform : array<TextureUniform>;
 
 
-// If this is true, the mesh is shaded with the shading normal values.
+/// If this is true, the mesh is shaded with the shading normal values.
 const DEBUG_OUTPUT_NORMALS: bool = false;
 /// And its conversion function.
 fn normal_to_display_color(normal: vec3f) -> CommonFragmentOutput{
@@ -206,6 +210,115 @@ fn vec3f_to_out(z: vec3f) -> CommonFragmentOutput{
     return output;
 }
 
+/// A helper struct to store data that goes into the actual pbr logic functions.
+struct SurfaceLightParameters {
+    half_dir: vec3f,
+    light_dir: vec3f,
+    view_dir: vec3f,
+    light_color: vec3f,
+    albedo: vec3f,
+    light_intensity: f32,
+    normal: vec3f,
+    roughness_factor: f32,
+    metallic_factor: f32,
+    occlusion: f32,
+};
+
+/// GGX normal distribution function.
+fn brdf_D_ggx(alpha: f32, nh: f32) -> f32 {
+    let a2 = alpha * alpha;
+    let hnh = heaviside(nh);
+    let nominator = a2 * hnh;
+    let nh2 = nh * nh;
+    let denominator = PI_F * pow((nh2 * (a2 - 1.0) + 1.0), 2);
+    return nominator / denominator;
+}
+
+fn brdf_G_smith_part(alpha: f32, normal_part: f32, half_part: f32) -> f32 {
+    let a2 = alpha * alpha;
+    let nominator = 2.0 * abs(normal_part) * heaviside(half_part);
+    let denominator = abs(normal_part) + sqrt(a2 + (1.0 - a2)*pow(normal_part, 2));
+    return nominator / denominator;
+}
+
+fn brdf_G_smith_joint_masking_shadowing(alpha: f32, half_dir: vec3f, normal: vec3f, view_dir: vec3f, light_dir: vec3f) -> f32 {
+    // Made up of a left term and right term.
+    // Left  term takes alpha, h, n, l,
+    // Right term takes alpha, h, n, v
+    let left = brdf_G_smith_part(alpha, dot(normal, light_dir), dot(normal, light_dir));
+    let right = brdf_G_smith_part(alpha, dot(normal, view_dir), dot(normal, view_dir));
+    return left * right;
+}
+
+fn schlick_fresnel(f0: vec3f, vh: f32) -> vec3f {
+    let to_fifth = pow(1.0 - abs(vh), 5);
+    return f0 + (1.0 - f0) * to_fifth;
+}
+
+fn SurfaceLightParameters_calculate(me: ptr<function, SurfaceLightParameters>) -> vec3<f32> {
+    // Okay, so here we actually do the PBR things!
+    // gltf's material model: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#complete-model
+    // For now, we're only doing something with the metal parts of it.
+    // There's an informative implementation section; https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#implementation
+    // So for D they use GGX
+    // For G they use Smith joint masking-shadowing function...
+    // Lambertian diffuse
+    // Schlick Fresnel approximation.
+
+
+    // We immediately go for the approach of
+    // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#metal-brdf-and-dielectric-brdf
+
+    let params = (*me);
+
+
+    // GLTF docs state alpha in their equations is roughness squared;
+    let alpha = params.roughness_factor * params.roughness_factor;
+    let nh = dot(params.normal, params.half_dir);
+    let D = brdf_D_ggx(alpha, nh);
+    let G = brdf_G_smith_joint_masking_shadowing(alpha, params.half_dir, params.normal, params.view_dir, params.light_dir);
+    let V = G / (4.0 * abs(dot(params.normal, params.light_dir)) * abs(dot(params.normal, params.view_dir)));
+    // This does not have the simplification... they propose in the docs.
+
+    let specular_brdf = V * D;
+
+
+    let c_diff = mix(params.albedo, vec3f(0.0, 0.0, 0.0), params.metallic_factor);
+    let f0 = mix(vec3f(0.04, 0.04, 0.04), params.albedo, params.metallic_factor);
+
+
+    let vh = dot(params.view_dir, params.half_dir);
+    let F = schlick_fresnel(f0, vh);
+
+    let diffuse_brdf =  (1.0 / PI_F) * c_diff;
+
+    let f_diffuse = (1.0 - F) * diffuse_brdf  ;
+    let f_specular = F * specular_brdf  ;
+    let material = (f_diffuse + f_specular);
+    return material * (params.light_color * params.light_intensity);
+
+    /*
+    let lambertian = max(dot(params.light_dir, params.normal), 0.0);
+    if lambertian > 0.0 {
+        let spec_angle = max(dot(params.half_dir, params.normal), 0.0);
+        // specular = pow(spec_angle, 16.0); // from wikipedia...
+    }
+
+    // let kd = light_uniform.lights[i].hardness_kd_ks.y; // diffuse effect
+    // let ks = light_uniform.lights[i].hardness_kd_ks.z; // specular effect
+    // let R = reflect(light_direction, normal); // equivalent to 2.0 * dot(N, L) * N - L
+
+    let diffuse =  max(0.0, dot(params.light_dir, params.normal)) * params.light_color * params.light_intensity;
+
+    // We clamp the dot product to 0 when it is negative
+    let R = reflect(-params.light_dir, params.normal);
+    let RoV = max(0.0, dot(R, params.view_dir));
+    let hardness = 20.0;
+    let specular = pow(RoV, hardness);
+
+    return params.albedo  * (kd * diffuse   + ks * specular);
+    */
+}
 
 @fragment
 fn main(input : CommonVertexOutput) -> CommonFragmentOutput
@@ -292,7 +405,6 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
 
     // View vector is from the contact point towards the camera.
    	let view_vector = normalize(input.view_vector);
-    // return vec3f_to_out(normalize(camera_uniform[0].camera_world_position));
 
    	var color = vec3<f32>(0.0);
    	for (var i: u32 = 0; i < light_count; i++) {
@@ -307,38 +419,28 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
         let half_dir = normalize(light_direction + view_vector);
 
   		let light_color = this_light.color;
-  		let light_intensity = this_light.intensity;
+  		let light_intensity = Light_intensity(&this_light, input.world_pos);
 
-        //
-        // var kd = roughness_factor;
-        // var ks = metallic_factor;
-        var kd = 0.5;
-        var ks = 0.9;
+        var surface_light_parameters: SurfaceLightParameters;
+        surface_light_parameters.half_dir = half_dir;
+        surface_light_parameters.light_dir = light_direction;
+        surface_light_parameters.view_dir = view_vector;
+        surface_light_parameters.light_color = light_color;
+        surface_light_parameters.albedo = current_color;
+        surface_light_parameters.light_intensity = light_intensity;
+        surface_light_parameters.normal = normal;
+        surface_light_parameters.roughness_factor = roughness_factor;
+        surface_light_parameters.metallic_factor = metallic_factor;
+        surface_light_parameters.occlusion = occlusion;
 
-        let lambertian = max(dot(light_direction, normal), 0.0);
-        if lambertian > 0.0 {
-            let spec_angle = max(dot(half_dir, normal), 0.0);
-            // specular = pow(spec_angle, 16.0); // from wikipedia...
-        }
 
-  		// let kd = light_uniform.lights[i].hardness_kd_ks.y; // diffuse effect
-  		// let ks = light_uniform.lights[i].hardness_kd_ks.z; // specular effect
-  		// let R = reflect(light_direction, normal); // equivalent to 2.0 * dot(N, L) * N - L
+        color += SurfaceLightParameters_calculate(&surface_light_parameters);
 
-  		let diffuse =  max(0.0, dot(light_direction, normal)) * light_color *light_intensity;
-
-  		// We clamp the dot product to 0 when it is negative
-        let R = reflect(-light_direction, normal);
-  		let RoV = max(0.0, dot(R, view_vector));
-        let hardness = 20.0;
-  		let specular = pow(RoV, hardness);
-
-  		color += current_color * (kd * diffuse   + ks * specular);
    	}
 
     color *= occlusion;
 
-    color += emission ;
+    color += emission;
 
    	// let corrected_color= color;
     let corrected_color = pow(color, vec3f(2.2));
