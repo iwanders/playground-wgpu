@@ -91,6 +91,7 @@ impl<'a> std::convert::From<&'a BindGroupLayoutDescriptorOwned>
     }
 }
 
+/*
 #[derive(Debug, Clone)]
 pub struct PipelineLayoutDescriptorOwned {
     pub label: Option<String>,
@@ -139,3 +140,4 @@ pub struct RenderPipelineDescriptorOwned {
     pub multiview_mask: Option<std::num::NonZeroU32>,
     // pub cache: Option<&'a PipelineCache>,
 }
+*/

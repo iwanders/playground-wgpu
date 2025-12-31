@@ -53,8 +53,16 @@ fn main(in : VertexInput) ->  CommonVertexOutput {
 
     // Obtain the model location in the world.
     let model_matrix = mesh_object_instances[in.instanceID];
+
     // Transform the vertex from local frame to world frame.
     let world_position =  (model_matrix * vec4<f32>(in.position, 1.0));
+
+    // This is gross, I thought we could avoid the matrix inverse on the model matrix, given that it is a homogenous matrix
+    // that at worst has a scaled rotation matrix, but the scaling may be uniform, which makes it a lot harder to do an easy
+    // transpose & -Rv trick to invert it, so we're using the polyfill from wgsl here;
+    // https://github.com/gfx-rs/wgpu/blob/aba9161b72c028aa8a1ce15aabd92e3c3cdb2da3/naga/src/back/wgsl/polyfill/inverse/inverse_4x4_f32.wgsl
+    // Ideally we'd either constrain scales to be uniform and do a bit of math to do the analytical inverse.
+    let normal_matrix = transpose(_naga_inverse_4x4_f32(model_matrix));
 
     // Set the color to default ot white.
     out.color = vec3<f32>(1.0, 1.0, 1.0);
@@ -71,6 +79,18 @@ fn main(in : VertexInput) ->  CommonVertexOutput {
     if (mesh_object_uniform.uv_present > 0) {
         out.uv_pos = vertex_uv[in.vertexID];
     }
+
+
+    if (mesh_object_uniform.tangent_present > 0) {
+        let tangent = normalize(vertex_tangent[in.vertexID]);
+        let normal = normalize(vertex_normal[in.vertexID]);
+
+        // This follows https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/e6b052db89fb2adbaf31da4565a08265c96c2b9f/source/Renderer/shaders/primitive.vert#L135-L148
+        out.tangent_w = (model_matrix * vec4f(tangent.xyz, 0.0)).xyz;
+        out.normal_w = normalize((normal_matrix * vec4f(normal, 0.0)).xyz);
+        out.bitangent_w = cross(out.normal_w, out.tangent_w) * tangent.w;
+    }
+
 
     // Assign the clip position and other remainders to the output.
     out.clip_position = (view_proj * world_position);

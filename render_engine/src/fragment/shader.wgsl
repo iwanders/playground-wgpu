@@ -260,12 +260,16 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
     // scaledNormal =  normalize((<sampled normal texture value> * 2.0 - 1.0) * vec3(<normal scale>, <normal scale>, 1.0))
 
     if (texture_meta.normal != 0){
-        // Normal map only has red and green, but the formula does use it like rgba... lets do that.
+        // See the section around normal mapping in the big comment above why we are doing this here. It's the mikktspace conversion.
+        // after https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/e6b052db89fb2adbaf31da4565a08265c96c2b9f/source/Renderer/shaders/material_info.glsl#L172-L175
         let normal_sampled = (textureSample(texture[texture_meta.normal], texture_sampler[texture_meta.normal], input.uv_pos)).rgb;
-        // Does this multiply with the normal from the vertices? Or overwrite? Probably multiply?
-        // I think this needs some more work... This needs some reading...
-        // https://eliemichel.github.io/LearnWebGPU/basic-3d-rendering/lighting-and-material/normal-mapping.html#sampling-normals
-        //normal  = normalize( normal * ((normal_sampled * 2.0 - 1.0) * vec3f(normal_scale, normal_scale, 1.0)));
+        let global_normal_scale = 1.0;
+        let normal_scaled = (normal_sampled * 2.0 - vec3f(1.0)) * vec3f(global_normal_scale, global_normal_scale, 1.0);
+        let normal_scaled_normalized = normalize(normal_scaled);
+        // Finally, use the tangent, bitangent and normal that we created in the vertex schader:
+
+        normal = normalize(mat3x3f(input.tangent_w, input.bitangent_w, input.normal_w) * normal_scaled_normalized);
+
     }
 
     if DEBUG_OUTPUT_NORMALS {
