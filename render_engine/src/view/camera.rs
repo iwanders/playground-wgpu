@@ -37,7 +37,7 @@ impl Camera {
                 z: 0.0,
             },
             aspect: width as f32 / height as f32,
-            fovy: 90.0,
+            fovy: 45.0,
             znear: 0.001,
             zfar: 1000.0,
         }
