@@ -278,7 +278,7 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
                     let s = (std::f32::consts::PI / 1920.0) * 2.0;
                     let dx = (position.x - state.mouse_position.x) as f32 * s;
                     let dy = (position.y - state.mouse_position.y) as f32 * s;
-                    state.camera.orbit_delta(-dx, dy, 0.0);
+                    state.camera.orbit_delta(dx, dy, 0.0);
                 }
                 state.mouse_position = position;
             }

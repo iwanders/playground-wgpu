@@ -354,6 +354,7 @@ pub fn load_gltf_objects(
 
         // Apply this nodes' transform.
         let this_transform = this_node.transform().to_glam() * top.transform;
+        println!("this_transform: {this_transform:#?}");
 
         if let Some(mesh) = this_node.mesh() {
             // Okay we have a mesh... now we need to do actual hard work to build our desired output object.

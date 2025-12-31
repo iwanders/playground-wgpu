@@ -33,8 +33,8 @@ impl Camera {
             // which way is "up"
             up: Vec3 {
                 x: 0.0,
-                y: 0.0,
-                z: 1.0,
+                y: 1.0,
+                z: 0.0,
             },
             aspect: width as f32 / height as f32,
             fovy: 90.0,

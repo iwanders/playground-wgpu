@@ -89,7 +89,7 @@ impl simple_start::Drawable for LocalState {
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
         mesh_object.replace_gpu_data();
 
-        mesh_objects_textured.clear();
+        // mesh_objects_textured.clear();
         mesh_objects_textured.push(MeshObjectTextured::new(
             state.context.clone(),
             MeshObject::new(
