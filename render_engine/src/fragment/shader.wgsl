@@ -446,8 +446,9 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
 
     color += emission;
 
-   	let corrected_color = color;
-    // let corrected_color = srgb_to_linear(color) ;
+   	// let corrected_color = color;
+    // let corrected_color = srgb_to_linear(tonemap_khronos_pbr_neutral(linear_to_srgb(color)));
+    let corrected_color = tonemap_khronos_pbr_neutral(color);
     output.color = vec4<f32>(corrected_color, 1.0);
     return output;
 }

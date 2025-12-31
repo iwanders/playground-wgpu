@@ -148,7 +148,28 @@ fn linear_to_srgb(color: vec3f) -> vec3f {
 fn srgb_to_linear(color: vec3f) -> vec3f {
     return  pow(color, vec3f(GAMMA));
 }
+fn tonemap_khronos_pbr_neutral(color_in: vec3f) -> vec3f{
+    const startCompression: f32 = 0.8 - 0.04;
+    const desaturation: f32 = 0.15;
+    var color = color_in;
 
+    let x = min(color.r, min(color.g, color.b));
+
+    let offset = select(0.04, x - 6.25 * x * x, x < 0.08);
+    color -= offset;
+
+    let peak = max(color.r, max(color.g, color.b));
+    if (peak < startCompression) { return color;
+    }
+
+    let d = 1.0 - startCompression;
+    let newPeak = 1. - d * d / (peak + d - startCompression);
+    color *= newPeak / peak;
+
+    let g = 1. - 1. / (desaturation * (peak - newPeak) + 1.);
+    return mix(color, newPeak * vec3f(1.0, 1.0, 1.0), g);
+
+}
 
 //-----------------------------------------------------
 // Check https://www.w3.org/TR/WGSL/#numeric-builtin-functions first for built in functions.
