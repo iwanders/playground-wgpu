@@ -175,8 +175,10 @@ async fn async_main() -> std::result::Result<(), anyhow::Error> {
         let drawable = LocalState::new();
         simple_start::async_render(drawable, 1024, 768, "/tmp/damaged_helmet_pbr.png").await?;
     }
-    let drawable = LocalState::new();
-    simple_start::async_main(drawable).await?;
+    if option_env!("RENDER_ENGINE_NON_INTERACTIVE").is_none() {
+        let drawable = LocalState::new();
+        simple_start::async_main(drawable).await?;
+    }
 
     Ok(())
 }

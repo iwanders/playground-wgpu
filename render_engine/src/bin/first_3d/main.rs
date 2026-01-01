@@ -42,10 +42,10 @@ impl simple_start::Drawable for LocalState {
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         // let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/CompareNormal.glb");
-        let gltf_path = std::path::PathBuf::from("../../assets/DamagedHelmet.glb");
+        // let gltf_path = std::path::PathBuf::from("../../assets/DamagedHelmet.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
 
-        // let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
+        let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
 
         let mut mesh_objects_textured =
             simple_start::loader::load_gltf_objects(&state.context, &gltf_path)?;
@@ -140,7 +140,7 @@ impl simple_start::Drawable for LocalState {
         let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
             simple_start::lights::Light::directional() // sun left
                 .with_direction([0.0, 0.0, -1.0]) // vector that denotes direction of light movement, so -1.0 is from straight up.
-                .with_intensity(0.5)
+                .with_intensity(1.0)
                 .with_color([1.0, 1.0, 1.0]),
             simple_start::lights::Light::omni() // on the top of the helmet, to the right.
                 .with_position([0.0, 1.0, 1.0])
@@ -172,24 +172,6 @@ impl simple_start::Drawable for LocalState {
             //     .with_color([1.0, 1.0, 0.1]),
         ]);
 
-        // https://github.com/KhronosGroup/glTF-Sample-Renderer/blob/e6b052db89fb2adbaf31da4565a08265c96c2b9f/source/Renderer/renderer.js#L76-L86
-        // Two lights,
-        //   a fill light from quat.fromValues(-0.8535534, 0.146446645, -0.353553325, -0.353553444), at intensity 0.5, infinite range.
-        //   a directional light from  quat.fromValues(-0.3535534, -0.353553385, -0.146446586, 0.8535534), at intsenity 1.0, infinite range.
-        let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
-            simple_start::lights::Light::directional()
-                .with_direction(
-                    glam::Quat::from_array([-0.8535534, 0.146446645, -0.353553325, -0.353553444])
-                        * vec3(0.0, 0.0, -1.0),
-                )
-                .with_intensity(0.5),
-            simple_start::lights::Light::directional()
-                .with_direction(
-                    glam::Quat::from_array([-0.3535534, -0.353553385, -0.146446586, 0.8535534])
-                        * vec3(0.0, 0.0, -1.0),
-                )
-                .with_intensity(1.0),
-        ]);
         let gpu_lights = lights.to_gpu();
 
         let destination = state.target.destination()?;
