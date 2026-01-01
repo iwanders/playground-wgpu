@@ -1,20 +1,34 @@
 # playground_wgpu
 
-Some explorations around how things get rendered on the screen.
+Some explorations around how things get rendered on the screen. I started with making a triangle with wgpu, then
+explored various other API's in the [exploration](./exploration/) directory before focussing on [render_engine](./render_engine/)
+which is a simple framework for rendering (simple gltfs) with wgpu.
 
-I initially started with `simple_start_wgpu`, which just rendered to a image file, then built
-`interactivity_wgpu` that has a movable camera. Then I switched to exploring some other api's, 
-and explored [ash](https://github.com/ash-rs/ash) and [vulkano](https://github.com/vulkano-rs/vulkano)
-in the `simple_start_{ash,vulkano}` directories respectively, this gave a better understanding of
-how things work under the hood. This was very insightful but also quite involved. I also switched
-to writing [slang](https://shader-slang.org/) shaders.
+This readme is mostly a bunch of notes and pointers for myself.
+
+## On physically based rendering.
+For PBR rendering, [s2013_pbs_physics_math_notes.pdf](https://blog.selfshadow.com/publications/s2013-shading-course/hoffman/s2013_pbs_physics_math_notes.pdf), gives a really good overview of how this works, and the
+[gltf 2.0 specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#appendix-b-brdf-implementation) is 
+also worth going through.
+
+Most of my notes on this are in [permalinked(/ old) shader.wgsl](https://github.com/iwanders/playground-wgpu/blob/11d4332f9c82575788e7902fd08dba92fd01186d/render_engine/src/fragment/shader.wgsl#L3).
+
+The [DamagedHelmet](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/DamagedHelmet) gltf sample asset looks like this:
+
+![damaged helmet render](https://github.com/user-attachments/assets/43f2cdb0-3346-4d75-bc21-ef78612d716b)
+
+with `cargo r --release --bin damaged_helmet_pbr` at [ab32ccb54e](https://github.com/iwanders/playground-wgpu/commit/ab32ccb54e84a5a259345b8189cbf0f0cc3a4c4f).
+
+Note on loading textures; some of them are in linear space, some of them are in srgb space. It is important to get this 
+right when loading them such that sampling from the texture works correctly.
 
 
-After those initial epxlorations I built `render_engine`, which is a bit more of an actual framework
-where various parts come together to draw an object. Here I hit a snag with using slang as this used
-combined texture samplers in the spir-v output, which is not something wgpu produced. As a stop-gap
-solution I used `slangc` to compile to wgsl and then imported that, which split the combination into
-a separate texture and sampler again, but this was obviously less than ideal, so I switched it all
-back to wgsl, even though I liked having struct methods and proper enums.
+## On coordinate frames.
+GLTF does NOT follow the same coordinate system as Blender. Blender has z up, while gltf has y up. There's a good image
+in [godot's documentation](https://github.com/godotengine/godot-docs/blob/fd4deee99f7361145546f069bdd80f64af3ff401/tutorials/3d/introduction_to_3d.rst#coordinate-system) that describes the various frames used by different programs. Unreal actually
+[switched](https://dev.epicgames.com/documentation/en-us/fortnite/leftupforward-coordinate-system-in-unreal-editor-for-fortnite)
+to a Left-Up-Forward coordinate system, which is also what GLTF uses, and what is used in my system here.
 
+
+---
 License is MIT.
