@@ -300,9 +300,9 @@ pub fn load_gltf_objects(
     context: &crate::Context,
     gltf_path: &std::path::Path,
 ) -> Result<Vec<MeshObjectTextured>, anyhow::Error> {
-    let device = &context.device;
     let (document, buffers, images) = gltf::import(gltf_path)?;
-    info!("document: {document:#?}");
+    let _ = images;
+    // info!("document: {document:#?}");
     // This doesn't handle instancing nicely atm... but this is already a non-tested hour long bender.
 
     // Okay, so we have a sampler specification.
@@ -443,7 +443,7 @@ pub fn load_gltf_objects(
                     //     this_material.pbr_metallic_roughness().base_color_factor();
                     // let roughness_factor =
                     //     this_material.pbr_metallic_roughness().roughness_factor();
-                    //
+                    // I should do something with these global factors.
 
                     if let Some(normal_texture) = this_material.normal_texture() {
                         // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_normaltexture

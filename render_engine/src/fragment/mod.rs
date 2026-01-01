@@ -124,24 +124,24 @@ pub const MESH_OBJECT_WGSL: StaticWgslStack = StaticWgslStack {
 
 pub mod mesh_object_textured;
 
-pub struct PhongLikeMaterialConfig {
+pub struct PBRMaterialConfig {
     pub rgba_format: wgpu::TextureFormat,
     pub depth_format: wgpu::TextureFormat,
 }
 
 /// A phong-shading like material. Not quite... because I made a mess.
-pub struct PhongLikeMaterial {
+pub struct PBRMaterial {
     pub render_pipeline: wgpu::RenderPipeline,
 }
 
-impl PhongLikeMaterial {
+impl PBRMaterial {
     pub fn new(
         context: &crate::Context,
-        config: &PhongLikeMaterialConfig,
+        config: &PBRMaterialConfig,
         vertex_source: crate::vertex::VertexCreaterShader,
     ) -> Self {
         let render_pipeline = Self::generate_pipeline(context, config, vertex_source);
-        PhongLikeMaterial { render_pipeline }
+        PBRMaterial { render_pipeline }
     }
 
     fn retrieve_embedded_shader(device: &wgpu::Device) -> wgpu::ShaderModule {
@@ -150,7 +150,7 @@ impl PhongLikeMaterial {
 
     fn generate_pipeline(
         context: &crate::Context,
-        config: &PhongLikeMaterialConfig,
+        config: &PBRMaterialConfig,
         vertex_source: crate::vertex::VertexCreaterShader,
     ) -> wgpu::RenderPipeline {
         let device = &context.device;

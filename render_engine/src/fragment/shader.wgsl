@@ -299,28 +299,6 @@ fn SurfaceLightParameters_calculate(me: ptr<function, SurfaceLightParameters>) -
     let f_specular = F * specular_brdf  ;
     let material = (f_diffuse + f_specular);
     return material * (params.light_color * params.light_intensity * params.occlusion);
-
-    /*
-    let lambertian = max(dot(params.light_dir, params.normal), 0.0);
-    if lambertian > 0.0 {
-        let spec_angle = max(dot(params.half_dir, params.normal), 0.0);
-        // specular = pow(spec_angle, 16.0); // from wikipedia...
-    }
-
-    // let kd = light_uniform.lights[i].hardness_kd_ks.y; // diffuse effect
-    // let ks = light_uniform.lights[i].hardness_kd_ks.z; // specular effect
-    // let R = reflect(light_direction, normal); // equivalent to 2.0 * dot(N, L) * N - L
-
-    let diffuse =  max(0.0, dot(params.light_dir, params.normal)) * params.light_color * params.light_intensity;
-
-    // We clamp the dot product to 0 when it is negative
-    let R = reflect(-params.light_dir, params.normal);
-    let RoV = max(0.0, dot(R, params.view_dir));
-    let hardness = 20.0;
-    let specular = pow(RoV, hardness);
-
-    return params.albedo  * (kd * diffuse   + ks * specular);
-    */
 }
 
 @fragment
@@ -442,6 +420,7 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
 
    	}
 
+    // Moved occlusion inot the surface light calculation.
     // color *= occlusion;
 
     color += emission;

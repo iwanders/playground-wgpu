@@ -1,8 +1,6 @@
-use glam::{Affine3A, Mat4, Vec3, vec3};
+use glam::{Mat4, vec3};
 use log::*;
 use simple_start::{State, fragment::mesh_object_textured::MeshObjectTextured, view::CameraView};
-
-use gltf;
 
 // How do we ehm, pull this hot mess apart?
 // Lights were easy
@@ -27,7 +25,7 @@ use simple_start::vertex::mesh_object::MeshObject;
 struct PersistentState {
     mesh_objects_textured: Vec<MeshObjectTextured>,
     depth_format: wgpu::TextureFormat,
-    material: Option<simple_start::fragment::PhongLikeMaterial>,
+    material: Option<simple_start::fragment::PBRMaterial>,
 }
 struct LocalState {
     persistent: Option<PersistentState>,
@@ -229,13 +227,13 @@ impl simple_start::Drawable for LocalState {
         // pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
 
         let material = persistent.material.get_or_insert_with(|| {
-            let config = simple_start::fragment::PhongLikeMaterialConfig {
+            let config = simple_start::fragment::PBRMaterialConfig {
                 rgba_format: texture_format,
                 depth_format: persistent.depth_format,
             };
             info!("Setting up pipeline with {texture_format:?}");
 
-            simple_start::fragment::PhongLikeMaterial::new(
+            simple_start::fragment::PBRMaterial::new(
                 &state.context,
                 &config,
                 simple_start::vertex::mesh_object::MeshObject::retrieve_embedded_shader(
