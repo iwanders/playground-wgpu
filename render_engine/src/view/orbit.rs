@@ -66,7 +66,7 @@ impl OrbitCamera {
         // Perform the changes.
         theta += delta_vertical;
         phi += delta_horizontal;
-        rho += delta_distance;
+        rho += delta_distance * target_to_camera.length().max(0.01);
 
         // Back to cartesian
         let new_x = rho * theta.sin() * phi.cos();
