@@ -23,9 +23,9 @@ fn load_gltf_meshes(
                 let name: Option<String>;
 
                 let primitives: Vec<_> = mesh.primitives().collect();
-                if primitives.len() > 1 {
-                    todo!();
-                }
+                // if primitives.len() > 1 {
+                //     todo!();
+                // }
                 if primitives.is_empty() {
                     continue;
                 }
@@ -302,7 +302,7 @@ pub fn load_gltf_objects(
 ) -> Result<Vec<MeshObjectTextured>, anyhow::Error> {
     let (document, buffers, images) = gltf::import(gltf_path)?;
     let _ = images;
-    // info!("document: {document:#?}");
+    info!("document: {document:#?}");
     // This doesn't handle instancing nicely atm... but this is already a non-tested hour long bender.
 
     // Okay, so we have a sampler specification.
@@ -350,149 +350,152 @@ pub fn load_gltf_objects(
     let mut output = vec![];
 
     // Need to recursively traverse the tree of nodes, lets keep a stack to do so.
-    #[derive(Debug, Copy, Clone)]
-    struct Stack {
+    #[derive(Debug, Clone)]
+    struct Stack<'a> {
         transform: Mat4,
-        index: usize,
+        nodes: Vec<gltf::Node<'a>>,
     }
+    // let flat_nodes = document.nodes().collect::<Vec<_>>();
     let mut stack = std::collections::VecDeque::new();
     stack.push_back(Stack {
         transform: Mat4::IDENTITY,
-        index: 0,
+        nodes: document.nodes().collect(),
     });
-    let flat_nodes = document.nodes().collect::<Vec<_>>();
     let flat_materials = document.materials().collect::<Vec<_>>();
     while let Some(top) = stack.pop_front() {
-        let this_node = &flat_nodes[top.index];
+        let nodes_this_level = top.nodes;
 
-        // Apply this nodes' transform.
-        let this_transform = this_node.transform().to_glam() * top.transform;
-        println!("this_transform: {this_transform:#?}");
+        for this_node in nodes_this_level.iter() {
+            // Apply this nodes' transform.
+            let this_transform = this_node.transform().to_glam() * top.transform;
+            println!("this_transform: {this_transform:#?}");
 
-        if let Some(mesh) = this_node.mesh() {
-            // Okay we have a mesh... now we need to do actual hard work to build our desired output object.
-            // Retrieve the mesh from our already processed entries.
-            let actual_geometry = meshes_by_index
-                .iter()
-                .find(|z| z.0.0 == mesh.index())
-                .with_context(|| "could not find mesh")?;
-            // This cuts a corner, but we don't handle multiple primitives atm anyway.
-            let primitives = mesh.primitives().collect::<Vec<_>>();
-            if primitives.len() > 1 {
-                todo!("we don't handle meshes with multiple primitives");
-            }
-            if let Some(this_primitive) = primitives.first() {
-                let mut this_primitive_textures = vec![];
-                // Now, we do something with the material
-                if let Some(material_index) = this_primitive.material().index() {
-                    let this_material = &flat_materials[material_index];
-                    // let double_sided = this_material.double_sided();
-                    let alpha_mode = this_material.alpha_mode();
-                    if alpha_mode != gltf::material::AlphaMode::Opaque {
-                        todo!();
+            if let Some(mesh) = this_node.mesh() {
+                // Okay we have a mesh... now we need to do actual hard work to build our desired output object.
+                // Retrieve the mesh from our already processed entries.
+                let actual_geometry = meshes_by_index
+                    .iter()
+                    .find(|z| z.0.0 == mesh.index())
+                    .with_context(|| "could not find mesh")?;
+                // This cuts a corner, but we don't handle multiple primitives atm anyway.
+                let primitives = mesh.primitives().collect::<Vec<_>>();
+                // if primitives.len() > 1 {
+                //     todo!("we don't handle meshes with multiple primitives");
+                // }
+                for this_primitive in primitives {
+                    let mut this_primitive_textures = vec![];
+                    // Now, we do something with the material
+                    if let Some(material_index) = this_primitive.material().index() {
+                        let this_material = &flat_materials[material_index];
+                        // let double_sided = this_material.double_sided();
+                        let alpha_mode = this_material.alpha_mode();
+                        if alpha_mode != gltf::material::AlphaMode::Opaque {
+                            //todo!();
+                        }
+
+                        if let Some(emissive_texture) = this_material.emissive_texture() {
+                            let texture_index = emissive_texture.texture().index();
+                            // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_emissivetexture
+                            // is in srgb
+                            let mut with_sampler = load_sampled_texture(
+                                context,
+                                &textures_by_index[texture_index],
+                                wgpu::TextureFormat::Rgba8UnormSrgb,
+                                &buffers,
+                            )?;
+                            with_sampler.texture_type = crate::texture::TextureType::Emissive;
+                            this_primitive_textures.push(with_sampler);
+                        }
+
+                        if let Some(base_color_texture) =
+                            this_material.pbr_metallic_roughness().base_color_texture()
+                        {
+                            let texture_index = base_color_texture.texture().index();
+                            // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_basecolortexture
+                            // must be srgb
+                            let mut with_sampler = load_sampled_texture(
+                                context,
+                                &textures_by_index[texture_index],
+                                wgpu::TextureFormat::Rgba8UnormSrgb,
+                                &buffers,
+                            )?;
+                            with_sampler.texture_type = crate::texture::TextureType::BaseColor;
+                            this_primitive_textures.push(with_sampler);
+                        }
+
+                        if let Some(metallic_roughness_texture) = this_material
+                            .pbr_metallic_roughness()
+                            .metallic_roughness_texture()
+                        {
+                            let texture_index = metallic_roughness_texture.texture().index();
+                            // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture
+                            // is in linear transform function, so NOT srgb!
+                            let mut with_sampler = load_sampled_texture(
+                                context,
+                                &textures_by_index[texture_index],
+                                wgpu::TextureFormat::Rgba8Unorm,
+                                &buffers,
+                            )?;
+                            with_sampler.texture_type =
+                                crate::texture::TextureType::MetallicRoughness;
+                            this_primitive_textures.push(with_sampler);
+                        }
+                        // let metallic_factor = this_material.pbr_metallic_roughness().metallic_factor();
+                        // let base_color_factor =
+                        //     this_material.pbr_metallic_roughness().base_color_factor();
+                        // let roughness_factor =
+                        //     this_material.pbr_metallic_roughness().roughness_factor();
+                        // I should do something with these global factors.
+
+                        if let Some(normal_texture) = this_material.normal_texture() {
+                            // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_normaltexture
+                            // Linear transfer function.
+                            let texture_index = normal_texture.texture().index();
+                            let mut with_sampler = load_sampled_texture(
+                                context,
+                                &textures_by_index[texture_index],
+                                wgpu::TextureFormat::Rgba8Unorm,
+                                &buffers,
+                            )?;
+                            with_sampler.texture_type = crate::texture::TextureType::Normal;
+                            this_primitive_textures.push(with_sampler);
+                        }
+                        if let Some(occlusion_texture) = this_material.occlusion_texture() {
+                            let texture_index = occlusion_texture.texture().index();
+                            // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_occlusiontexture
+                            // Linear transfer function.
+                            let mut with_sampler = load_sampled_texture(
+                                context,
+                                &textures_by_index[texture_index],
+                                wgpu::TextureFormat::Rgba8Unorm,
+                                &buffers,
+                            )?;
+                            with_sampler.texture_type = crate::texture::TextureType::Occlusion;
+                            this_primitive_textures.push(with_sampler);
+                        }
                     }
 
-                    if let Some(emissive_texture) = this_material.emissive_texture() {
-                        let texture_index = emissive_texture.texture().index();
-                        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_emissivetexture
-                        // is in srgb
-                        let mut with_sampler = load_sampled_texture(
-                            context,
-                            &textures_by_index[texture_index],
-                            wgpu::TextureFormat::Rgba8UnormSrgb,
-                            &buffers,
-                        )?;
-                        with_sampler.texture_type = crate::texture::TextureType::Emissive;
-                        this_primitive_textures.push(with_sampler);
-                    }
+                    // Now that we have processed the material, we have obtained the textures... we can instantiate our
+                    // desired MeshObjectTextured.
+                    let gpu_mesh = actual_geometry.1.to_gpu(&context);
+                    let mut mesh_object = MeshObject::new(context.clone(), gpu_mesh);
+                    mesh_object.set_single_transform(&this_transform);
+                    mesh_object.replace_gpu_data();
 
-                    if let Some(base_color_texture) =
-                        this_material.pbr_metallic_roughness().base_color_texture()
-                    {
-                        let texture_index = base_color_texture.texture().index();
-                        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_basecolortexture
-                        // must be srgb
-                        let mut with_sampler = load_sampled_texture(
-                            context,
-                            &textures_by_index[texture_index],
-                            wgpu::TextureFormat::Rgba8UnormSrgb,
-                            &buffers,
-                        )?;
-                        with_sampler.texture_type = crate::texture::TextureType::BaseColor;
-                        this_primitive_textures.push(with_sampler);
-                    }
-
-                    if let Some(metallic_roughness_texture) = this_material
-                        .pbr_metallic_roughness()
-                        .metallic_roughness_texture()
-                    {
-                        let texture_index = metallic_roughness_texture.texture().index();
-                        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture
-                        // is in linear transform function, so NOT srgb!
-                        let mut with_sampler = load_sampled_texture(
-                            context,
-                            &textures_by_index[texture_index],
-                            wgpu::TextureFormat::Rgba8Unorm,
-                            &buffers,
-                        )?;
-                        with_sampler.texture_type = crate::texture::TextureType::MetallicRoughness;
-                        this_primitive_textures.push(with_sampler);
-                    }
-                    // let metallic_factor = this_material.pbr_metallic_roughness().metallic_factor();
-                    // let base_color_factor =
-                    //     this_material.pbr_metallic_roughness().base_color_factor();
-                    // let roughness_factor =
-                    //     this_material.pbr_metallic_roughness().roughness_factor();
-                    // I should do something with these global factors.
-
-                    if let Some(normal_texture) = this_material.normal_texture() {
-                        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_normaltexture
-                        // Linear transfer function.
-                        let texture_index = normal_texture.texture().index();
-                        let mut with_sampler = load_sampled_texture(
-                            context,
-                            &textures_by_index[texture_index],
-                            wgpu::TextureFormat::Rgba8Unorm,
-                            &buffers,
-                        )?;
-                        with_sampler.texture_type = crate::texture::TextureType::Normal;
-                        this_primitive_textures.push(with_sampler);
-                    }
-                    if let Some(occlusion_texture) = this_material.occlusion_texture() {
-                        let texture_index = occlusion_texture.texture().index();
-                        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_occlusiontexture
-                        // Linear transfer function.
-                        let mut with_sampler = load_sampled_texture(
-                            context,
-                            &textures_by_index[texture_index],
-                            wgpu::TextureFormat::Rgba8Unorm,
-                            &buffers,
-                        )?;
-                        with_sampler.texture_type = crate::texture::TextureType::Occlusion;
-                        this_primitive_textures.push(with_sampler);
-                    }
+                    output.push(MeshObjectTextured::new(
+                        context.clone(),
+                        mesh_object,
+                        &this_primitive_textures,
+                    ));
                 }
-
-                // Now that we have processed the material, we have obtained the textures... we can instantiate our
-                // desired MeshObjectTextured.
-                let gpu_mesh = actual_geometry.1.to_gpu(&context);
-                let mut mesh_object = MeshObject::new(context.clone(), gpu_mesh);
-                mesh_object.set_single_transform(&this_transform);
-                mesh_object.replace_gpu_data();
-
-                output.push(MeshObjectTextured::new(
-                    context.clone(),
-                    mesh_object,
-                    &this_primitive_textures,
-                ));
             }
-        }
-
-        for c in this_node.children() {
-            stack.push_back(Stack {
-                transform: this_transform,
-                index: c.index(),
-            });
+            let this_node_children: Vec<_> = this_node.children().collect();
+            if !this_node_children.is_empty() {
+                stack.push_back(Stack {
+                    transform: this_transform,
+                    nodes: this_node_children,
+                });
+            }
         }
     }
 
