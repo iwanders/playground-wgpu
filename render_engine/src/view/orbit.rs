@@ -79,6 +79,37 @@ impl OrbitCamera {
         // Offset that with the target.
         self.camera.eye = self.camera.target + camera_local_frame;
     }
+    pub fn orbit_delta_target(
+        &mut self,
+        delta_horizontal: f32,
+        delta_vertical: f32,
+        delta_distance: f32,
+    ) {
+        // not quite...
+        // Move the target location bad on the current orientation and distance to the target. Effectively translating
+        // the viewpoint and target with equal values.
+        let target_to_camera = self.camera.eye - self.camera.target;
+        let distance = target_to_camera.length();
+
+        // Determine the frame of the eye in world coordinates, obtaining its orientation and translation.
+        let camera_angle = glam::Quat::from_rotation_arc(vec3(0.0, 0.0, 1.0), target_to_camera);
+        let eye_world_frame = Mat4::from_rotation_translation(camera_angle, self.camera.eye);
+
+        // Express change in the local camera frame.
+        let new_x = delta_horizontal * distance * 0.1;
+        let new_y = delta_vertical * distance * 0.1;
+        let new_z = 0.0;
+
+        // Transform the local camera frame changes to the world.
+        let camera_local_frame = eye_world_frame.transform_point3(vec3(new_x, new_y, new_z));
+
+        // Subtract the camera eye to determine the delta.
+        let delta = camera_local_frame - self.camera.eye;
+
+        // Offset that with the target and the eye.
+        self.camera.target += delta;
+        self.camera.eye += delta;
+    }
 }
 
 impl super::CameraView for OrbitCamera {

@@ -81,6 +81,7 @@ pub struct State {
     pub is_surface_configured: bool,
     pub mouse_left_down: bool,
     pub mouse_position: winit::dpi::PhysicalPosition<f64>,
+    pub mouse_right_down: bool,
 }
 impl State {
     async fn new_window(window: Arc<Window>) -> anyhow::Result<State> {
@@ -110,6 +111,7 @@ impl State {
             camera: view::orbit::OrbitCamera::new(width, height),
             is_surface_configured: false,
             mouse_left_down: false,
+            mouse_right_down: false,
             mouse_position: Default::default(),
         })
     }
@@ -271,6 +273,7 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
                 ..
             } => match (button, button_state.is_pressed()) {
                 (MouseButton::Left, v) => state.mouse_left_down = v,
+                (MouseButton::Right, v) => state.mouse_right_down = v,
                 _ => {}
             },
             WindowEvent::CursorMoved { position, .. } => {
@@ -279,6 +282,12 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
                     let dx = (position.x - state.mouse_position.x) as f32 * s;
                     let dy = (position.y - state.mouse_position.y) as f32 * s;
                     state.camera.orbit_delta(dx, dy, 0.0);
+                }
+                if state.mouse_right_down {
+                    let s = (std::f32::consts::PI / 1920.0) * 2.0;
+                    let dx = (position.x - state.mouse_position.x) as f32 * s;
+                    let dy = (position.y - state.mouse_position.y) as f32 * s;
+                    state.camera.orbit_delta_target(dx, dy, 0.0);
                 }
                 state.mouse_position = position;
             }
