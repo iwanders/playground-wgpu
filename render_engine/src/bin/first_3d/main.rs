@@ -44,8 +44,12 @@ impl simple_start::Drawable for LocalState {
         // let gltf_path = std::path::PathBuf::from("../../assets/CompareNormal.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/DamagedHelmet.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
+        // let gltf_path = std::path::PathBuf::from("../../assets/SimpleMeshes.gltf");
+        let gltf_path = std::path::PathBuf::from("../../assets/sponza.glb");
+        // let gltf_path = std::path::PathBuf::from("../../assets/AntiqueCamera.glb");
+        // let gltf_path = std::path::PathBuf::from("../../assets/ABeautifulGame.glb");
 
-        let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
+        // let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
 
         let mut mesh_objects_textured =
             simple_start::loader::load_gltf_objects(&state.context, &gltf_path)?;
@@ -94,7 +98,7 @@ impl simple_start::Drawable for LocalState {
 
         pub const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float; // 1.
         // mesh_objects_textured.clear();
-        if true {
+        if false {
             mesh_objects_textured.push(MeshObjectTextured::new(
                 state.context.clone(),
                 MeshObject::new(
@@ -158,18 +162,19 @@ impl simple_start::Drawable for LocalState {
                 .with_position([0.0, 1.0, -2.0])
                 .with_intensity(1.0)
                 .with_color([1.0, 1.0, 1.0]),
-            // simple_start::lights::Light::omni() // Orbitter red
-            //     .with_position([3.0, 0.0, 0.0])
-            //     .with_intensity(0.5)
-            //     .with_color([1.0, 1.0, 1.0]),
-            // simple_start::lights::Light::omni() // Orbitter red
-            //     .with_position([l1_theta.cos() * radius, l1_theta.sin() * radius, 0.1])
-            //     .with_intensity(0.5)
-            //     .with_color([1.0, 0.0, 0.3]),
-            // simple_start::lights::Light::omni() // Orbitter green
-            //     .with_position([l2_theta.cos() * radius, l2_theta.sin() * radius, 0.1])
-            //     .with_intensity(0.5)
-            //     .with_color([1.0, 1.0, 0.1]),
+            // Lights from the default gltf viewer:
+            simple_start::lights::Light::directional()
+                .with_direction(
+                    glam::Quat::from_array([-0.8535534, 0.146446645, -0.353553325, -0.353553444])
+                        * vec3(0.0, 0.0, -1.0),
+                )
+                .with_intensity(0.5),
+            simple_start::lights::Light::directional()
+                .with_direction(
+                    glam::Quat::from_array([-0.3535534, -0.353553385, -0.146446586, 0.8535534])
+                        * vec3(0.0, 0.0, -1.0),
+                )
+                .with_intensity(1.0),
         ]);
 
         let gpu_lights = lights.to_gpu();
@@ -301,7 +306,7 @@ impl simple_start::Drawable for LocalState {
     }
 }
 async fn async_main() -> std::result::Result<(), anyhow::Error> {
-    if true {
+    if false {
         let drawable = LocalState::new();
         simple_start::async_render(drawable, 1024, 768, "/tmp/first_3d.png").await?;
     }

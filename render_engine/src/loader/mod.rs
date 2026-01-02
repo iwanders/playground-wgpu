@@ -6,6 +6,90 @@ use log::*;
 
 struct MeshIndex(usize);
 
+fn load_gltf_primitive_mesh(
+    primitive: &gltf::Primitive,
+    document: &gltf::Document,
+    buffers: &[gltf::buffer::Data],
+    name: &Option<String>,
+) -> CpuMesh {
+    let mut vertex_buffer = Vec::<Vec3>::new();
+    let mut index_buffer: Vec<u32> = Vec::new();
+    let mut normal_buffer: Option<Vec<Vec3A>> = None;
+    let mut uv_buffer: Option<Vec<Vec2>> = None;
+    let mut color_buffer: Option<Vec<Vec4>> = None;
+
+    let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+
+    // Access vertex positions
+    if let Some(positions) = reader.read_positions() {
+        for p in positions {
+            vertex_buffer.push(vec3(p[0], p[1], p[2]));
+        }
+    }
+    // Access indices
+    if let Some(indices) = reader.read_indices() {
+        match indices {
+            ::gltf::mesh::util::ReadIndices::U8(iter) => {
+                index_buffer.extend(iter.map(|v| v as u32));
+            }
+            ::gltf::mesh::util::ReadIndices::U16(iter) => {
+                index_buffer.extend(iter.map(|v| v as u32));
+            }
+            ::gltf::mesh::util::ReadIndices::U32(iter) => {
+                index_buffer.extend(iter);
+            }
+        }
+    }
+
+    // Access colors
+    if let Some(colors) = reader.read_colors(0) {
+        let color_container = color_buffer.get_or_insert_default();
+        match colors {
+            gltf::mesh::util::ReadColors::RgbU8(_iter) => todo!(),
+            gltf::mesh::util::ReadColors::RgbU16(_iter) => todo!(),
+            gltf::mesh::util::ReadColors::RgbF32(iter) => {
+                color_container.extend(iter.map(|v| vec4(v[0], v[1], v[2], 1.0)));
+            }
+            gltf::mesh::util::ReadColors::RgbaU8(_iter) => todo!(),
+            gltf::mesh::util::ReadColors::RgbaU16(_iter) => todo!(),
+            gltf::mesh::util::ReadColors::RgbaF32(iter) => {
+                color_container.extend(iter.map(|v| vec4(v[0], v[1], v[2], v[3])));
+            }
+        }
+    }
+    // Access normals
+    if let Some(normals) = reader.read_normals() {
+        let normal_container = normal_buffer.get_or_insert_default();
+        // normal_container.resize(vertex_buffer.len(), Default::default());
+
+        for n in normals {
+            // Do something with the normal [n[0], n[1], n[2]]
+            normal_container.push(vec3a(n[0], n[1], n[2]));
+            // normal_container[ni] = vec3(n[0], n[1], n[2]);
+            // println!("normal: {:?}", normal_container[ni]);
+        }
+    }
+    // Access texture coordinates (TexCoords)
+    if let Some(tex_coords) = reader.read_tex_coords(0) {
+        let texture_container = uv_buffer.get_or_insert_default();
+        for tc in tex_coords.into_f32() {
+            texture_container.push(vec2(tc[0], tc[1]));
+        }
+    }
+
+    let mut this_mesh = CpuMesh::new(vertex_buffer, index_buffer);
+    this_mesh.color = color_buffer;
+    this_mesh.normal = normal_buffer;
+    this_mesh.uv = uv_buffer;
+    this_mesh.name = name.clone();
+
+    let tangents_calculated = this_mesh.calculate_tangents();
+    if !tangents_calculated {
+        warn!("Could not calculate tangents for {:?}", this_mesh.name);
+    }
+    this_mesh
+}
+
 fn load_gltf_meshes(
     document: &gltf::Document,
     buffers: &[gltf::buffer::Data],
@@ -15,13 +99,6 @@ fn load_gltf_meshes(
         for (node_index, node) in scene.nodes().enumerate() {
             let _ = node_index;
             if let Some(mesh) = node.mesh() {
-                let mut vertex_buffer = Vec::<Vec3>::new();
-                let mut index_buffer: Vec<u32> = Vec::new();
-                let mut normal_buffer: Option<Vec<Vec3A>> = None;
-                let mut uv_buffer: Option<Vec<Vec2>> = None;
-                let mut color_buffer: Option<Vec<Vec4>> = None;
-                let name: Option<String>;
-
                 let primitives: Vec<_> = mesh.primitives().collect();
                 // if primitives.len() > 1 {
                 //     todo!();
@@ -30,79 +107,10 @@ fn load_gltf_meshes(
                     continue;
                 }
 
-                name = mesh.name().map(|z| z.to_owned());
+                let name = mesh.name().map(|z| z.to_owned());
                 let primitive = primitives.first().unwrap();
                 {
-                    let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-
-                    // Access vertex positions
-                    if let Some(positions) = reader.read_positions() {
-                        for p in positions {
-                            vertex_buffer.push(vec3(p[0], p[1], p[2]));
-                        }
-                    }
-                    // Access indices
-                    if let Some(indices) = reader.read_indices() {
-                        match indices {
-                            ::gltf::mesh::util::ReadIndices::U8(iter) => {
-                                index_buffer.extend(iter.map(|v| v as u32));
-                            }
-                            ::gltf::mesh::util::ReadIndices::U16(iter) => {
-                                index_buffer.extend(iter.map(|v| v as u32));
-                            }
-                            ::gltf::mesh::util::ReadIndices::U32(iter) => {
-                                index_buffer.extend(iter);
-                            }
-                        }
-                    }
-
-                    // Access colors
-                    if let Some(colors) = reader.read_colors(0) {
-                        let color_container = color_buffer.get_or_insert_default();
-                        match colors {
-                            gltf::mesh::util::ReadColors::RgbU8(_iter) => todo!(),
-                            gltf::mesh::util::ReadColors::RgbU16(_iter) => todo!(),
-                            gltf::mesh::util::ReadColors::RgbF32(iter) => {
-                                color_container.extend(iter.map(|v| vec4(v[0], v[1], v[2], 1.0)));
-                            }
-                            gltf::mesh::util::ReadColors::RgbaU8(_iter) => todo!(),
-                            gltf::mesh::util::ReadColors::RgbaU16(_iter) => todo!(),
-                            gltf::mesh::util::ReadColors::RgbaF32(iter) => {
-                                color_container.extend(iter.map(|v| vec4(v[0], v[1], v[2], v[3])));
-                            }
-                        }
-                    }
-                    // Access normals
-                    if let Some(normals) = reader.read_normals() {
-                        let normal_container = normal_buffer.get_or_insert_default();
-                        // normal_container.resize(vertex_buffer.len(), Default::default());
-
-                        for n in normals {
-                            // Do something with the normal [n[0], n[1], n[2]]
-                            normal_container.push(vec3a(n[0], n[1], n[2]));
-                            // normal_container[ni] = vec3(n[0], n[1], n[2]);
-                            // println!("normal: {:?}", normal_container[ni]);
-                        }
-                    }
-                    // Access texture coordinates (TexCoords)
-                    if let Some(tex_coords) = reader.read_tex_coords(0) {
-                        let texture_container = uv_buffer.get_or_insert_default();
-                        for tc in tex_coords.into_f32() {
-                            texture_container.push(vec2(tc[0], tc[1]));
-                        }
-                    }
-
-                    let mut this_mesh = CpuMesh::new(vertex_buffer, index_buffer);
-                    this_mesh.color = color_buffer;
-                    this_mesh.normal = normal_buffer;
-                    this_mesh.uv = uv_buffer;
-                    this_mesh.name = name;
-
-                    let tangents_calculated = this_mesh.calculate_tangents();
-                    if !tangents_calculated {
-                        warn!("Could not calculate tangents for {:?}", this_mesh.name);
-                    }
-
+                    let this_mesh = load_gltf_primitive_mesh(primitive, document, buffers, &name);
                     result.push((MeshIndex(mesh.index()), this_mesh));
                 }
             }
@@ -423,11 +431,11 @@ pub fn load_gltf_objects(
                 // Okay we have a mesh... now we need to do actual hard work to build our desired output object.
                 // Retrieve the mesh from our already processed entries.
                 let actual_geometry = meshes_by_index.iter().find(|z| z.0.0 == mesh.index());
-                if actual_geometry.is_none() {
-                    warn!("Missing geometry for {this_node:?}");
-                    continue;
-                }
-                let actual_geometry = actual_geometry.unwrap();
+                // if actual_geometry.is_none() {
+                //     warn!("Missing geometry for {this_node:?}");
+                //     continue;
+                // }
+                // let actual_geometry = actual_geometry.unwrap();
                 // This cuts a corner, but we don't handle multiple primitives atm anyway.
                 let primitives = mesh.primitives().collect::<Vec<_>>();
                 // if primitives.len() > 1 {
@@ -508,7 +516,13 @@ pub fn load_gltf_objects(
 
                     // Now that we have processed the material, we have obtained the textures... we can instantiate our
                     // desired MeshObjectTextured.
-                    let gpu_mesh = actual_geometry.1.to_gpu(&context);
+                    let cpu_mesh = load_gltf_primitive_mesh(
+                        &this_primitive,
+                        &document,
+                        &buffers,
+                        &mesh.name().map(|z| z.to_owned()),
+                    );
+                    let gpu_mesh = cpu_mesh.to_gpu(&context);
                     let mut mesh_object = MeshObject::new(context.clone(), gpu_mesh);
                     mesh_object.set_single_transform(&this_transform);
                     mesh_object.replace_gpu_data();
