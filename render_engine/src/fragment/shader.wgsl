@@ -295,10 +295,10 @@ fn SurfaceLightParameters_calculate(me: ptr<function, SurfaceLightParameters>) -
     let diffuse_brdf =  (1.0 / PI_F) * c_diff;
 
     let nl = dot(params.normal, params.light_dir);
-    let f_diffuse = (1.0 - F) * diffuse_brdf * heaviside(nl) * nl;
+    let f_diffuse = (1.0 - F) * diffuse_brdf;
     let f_specular = F * specular_brdf  ;
     let material = (f_diffuse + f_specular);
-    return material * (params.light_color * params.light_intensity * params.occlusion);
+    return material * (params.light_color * params.light_intensity * params.occlusion) * heaviside(nl) * nl;
 }
 
 @fragment

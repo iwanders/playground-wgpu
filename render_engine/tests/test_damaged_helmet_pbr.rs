@@ -25,11 +25,11 @@ fn main() -> Result<(), anyhow::Error> {
         // Back side of helmet.
         ((263u32, 158u32), [67u8, 74, 78, 255]),
         // Specular metal at the front.
-        ((626, 592), [248, 248, 245, 255]),
+        ((626, 592), [248, 247, 245, 255]),
         // Emissive
         ((694, 427), [55, 182, 203, 255]),
         // Some rust.
-        ((405, 206), [47, 24, 29, 255]),
+        ((405, 206), [45, 22, 27, 255]),
     ];
 
     for ((x, y), expected) in expected_values.iter() {
