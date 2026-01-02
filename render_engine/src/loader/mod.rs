@@ -269,10 +269,10 @@ fn load_sampled_texture(
     let sampler = texture.sampler();
     let image_source = texture.source();
     let image_data = gltf::image::Data::from_source(image_source.source(), None, buffers)?;
-    println!(
-        "image data: {:?}, {:?}",
-        image_data.format, image_data.width,
-    );
+    // println!(
+    //     "image data: {:?}, {:?}",
+    //     image_data.format, image_data.width,
+    // );
     let texture = load_gltf_texture(&context, &image_data, texture_format);
     Ok(crate::texture::SampledTexture {
         sampler: context.device.create_sampler(&wgpu::SamplerDescriptor {
@@ -343,6 +343,48 @@ pub fn load_gltf_objects(
 
     let textures_by_index: Vec<_> = document.textures().collect();
 
+    #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+    struct SampledTextureKey {
+        texture_index: usize,
+        format: wgpu::TextureFormat,
+    }
+    #[derive(Debug)]
+    struct SampledTextureCache<'a> {
+        cache: std::collections::HashMap<SampledTextureKey, crate::texture::SampledTexture>,
+        textures_by_index: Vec<gltf::Texture<'a>>,
+        context: crate::Context,
+        buffers: Vec<gltf::buffer::Data>,
+    }
+    impl<'a> SampledTextureCache<'a> {
+        pub fn retrieve(
+            &mut self,
+            texture_index: usize,
+            format: wgpu::TextureFormat,
+        ) -> crate::texture::SampledTexture {
+            self.cache
+                .entry(SampledTextureKey {
+                    texture_index,
+                    format,
+                })
+                .or_insert_with(|| {
+                    load_sampled_texture(
+                        &self.context,
+                        &self.textures_by_index[texture_index],
+                        format,
+                        &self.buffers,
+                    )
+                    .expect("loading texture failed")
+                })
+                .clone()
+        }
+    }
+    let mut sampled_texture_cache: SampledTextureCache = SampledTextureCache {
+        cache: Default::default(),
+        textures_by_index: textures_by_index.clone(),
+        context: context.clone(),
+        buffers: buffers.clone(),
+    };
+
     // Okay, so now we have the textures & samplers combined at the ready... now, we should be able to mostly iterate
     // through the nodes, fiddle a bit with transforms and when we reach a mesh with a material check its material and
     // then pick resources from the our textures that are now ready to go.
@@ -357,9 +399,16 @@ pub fn load_gltf_objects(
     }
     // let flat_nodes = document.nodes().collect::<Vec<_>>();
     let mut stack = std::collections::VecDeque::new();
+
+    // let flat_nodes: Vec<_> = document.nodes().collect();
     stack.push_back(Stack {
         transform: Mat4::IDENTITY,
-        nodes: document.nodes().collect(),
+        nodes: document
+            .scenes()
+            .next()
+            .expect("exected at least one scene")
+            .nodes()
+            .collect(),
     });
     let flat_materials = document.materials().collect::<Vec<_>>();
     while let Some(top) = stack.pop_front() {
@@ -367,16 +416,18 @@ pub fn load_gltf_objects(
 
         for this_node in nodes_this_level.iter() {
             // Apply this nodes' transform.
-            let this_transform = this_node.transform().to_glam() * top.transform;
+            let this_transform = top.transform * this_node.transform().to_glam();
             println!("this_transform: {this_transform:#?}");
 
             if let Some(mesh) = this_node.mesh() {
                 // Okay we have a mesh... now we need to do actual hard work to build our desired output object.
                 // Retrieve the mesh from our already processed entries.
-                let actual_geometry = meshes_by_index
-                    .iter()
-                    .find(|z| z.0.0 == mesh.index())
-                    .with_context(|| "could not find mesh")?;
+                let actual_geometry = meshes_by_index.iter().find(|z| z.0.0 == mesh.index());
+                if actual_geometry.is_none() {
+                    warn!("Missing geometry for {this_node:?}");
+                    continue;
+                }
+                let actual_geometry = actual_geometry.unwrap();
                 // This cuts a corner, but we don't handle multiple primitives atm anyway.
                 let primitives = mesh.primitives().collect::<Vec<_>>();
                 // if primitives.len() > 1 {
@@ -397,12 +448,8 @@ pub fn load_gltf_objects(
                             let texture_index = emissive_texture.texture().index();
                             // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_emissivetexture
                             // is in srgb
-                            let mut with_sampler = load_sampled_texture(
-                                context,
-                                &textures_by_index[texture_index],
-                                wgpu::TextureFormat::Rgba8UnormSrgb,
-                                &buffers,
-                            )?;
+                            let mut with_sampler = sampled_texture_cache
+                                .retrieve(texture_index, wgpu::TextureFormat::Rgba8UnormSrgb);
                             with_sampler.texture_type = crate::texture::TextureType::Emissive;
                             this_primitive_textures.push(with_sampler);
                         }
@@ -413,12 +460,8 @@ pub fn load_gltf_objects(
                             let texture_index = base_color_texture.texture().index();
                             // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_basecolortexture
                             // must be srgb
-                            let mut with_sampler = load_sampled_texture(
-                                context,
-                                &textures_by_index[texture_index],
-                                wgpu::TextureFormat::Rgba8UnormSrgb,
-                                &buffers,
-                            )?;
+                            let mut with_sampler = sampled_texture_cache
+                                .retrieve(texture_index, wgpu::TextureFormat::Rgba8UnormSrgb);
                             with_sampler.texture_type = crate::texture::TextureType::BaseColor;
                             this_primitive_textures.push(with_sampler);
                         }
@@ -430,12 +473,8 @@ pub fn load_gltf_objects(
                             let texture_index = metallic_roughness_texture.texture().index();
                             // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture
                             // is in linear transform function, so NOT srgb!
-                            let mut with_sampler = load_sampled_texture(
-                                context,
-                                &textures_by_index[texture_index],
-                                wgpu::TextureFormat::Rgba8Unorm,
-                                &buffers,
-                            )?;
+                            let mut with_sampler = sampled_texture_cache
+                                .retrieve(texture_index, wgpu::TextureFormat::Rgba8Unorm);
                             with_sampler.texture_type =
                                 crate::texture::TextureType::MetallicRoughness;
                             this_primitive_textures.push(with_sampler);
@@ -451,12 +490,8 @@ pub fn load_gltf_objects(
                             // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_normaltexture
                             // Linear transfer function.
                             let texture_index = normal_texture.texture().index();
-                            let mut with_sampler = load_sampled_texture(
-                                context,
-                                &textures_by_index[texture_index],
-                                wgpu::TextureFormat::Rgba8Unorm,
-                                &buffers,
-                            )?;
+                            let mut with_sampler = sampled_texture_cache
+                                .retrieve(texture_index, wgpu::TextureFormat::Rgba8Unorm);
                             with_sampler.texture_type = crate::texture::TextureType::Normal;
                             this_primitive_textures.push(with_sampler);
                         }
@@ -464,12 +499,8 @@ pub fn load_gltf_objects(
                             let texture_index = occlusion_texture.texture().index();
                             // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_occlusiontexture
                             // Linear transfer function.
-                            let mut with_sampler = load_sampled_texture(
-                                context,
-                                &textures_by_index[texture_index],
-                                wgpu::TextureFormat::Rgba8Unorm,
-                                &buffers,
-                            )?;
+                            let mut with_sampler = sampled_texture_cache
+                                .retrieve(texture_index, wgpu::TextureFormat::Rgba8Unorm);
                             with_sampler.texture_type = crate::texture::TextureType::Occlusion;
                             this_primitive_textures.push(with_sampler);
                         }
