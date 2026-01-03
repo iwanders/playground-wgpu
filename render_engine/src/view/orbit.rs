@@ -85,30 +85,32 @@ impl OrbitCamera {
         delta_vertical: f32,
         delta_distance: f32,
     ) {
-        // not quite...
         // Move the target location bad on the current orientation and distance to the target. Effectively translating
         // the viewpoint and target with equal values.
         let target_to_camera = self.camera.eye - self.camera.target;
         let distance = target_to_camera.length();
 
-        // Determine the frame of the eye in world coordinates, obtaining its orientation and translation.
-        let camera_angle = glam::Quat::from_rotation_arc(vec3(0.0, 0.0, 1.0), target_to_camera);
-        let eye_world_frame = Mat4::from_rotation_translation(camera_angle, self.camera.eye);
+        let view_direction = (self.camera.target - self.camera.eye).normalize();
 
-        // Express change in the local camera frame.
-        let new_x = delta_horizontal * distance * 0.1;
-        let new_y = delta_vertical * distance * 0.1;
-        let new_z = 0.0;
+        // This is a normalized vector towards the right of the current view.
+        let right_dir = view_direction.cross(self.camera.up).normalize();
+        // And by flipping right dir and taking the cross product with the view dir, we obtain an up vector in camera
+        // frame.
+        let up_dir = view_direction.cross(-right_dir).normalize();
 
-        // Transform the local camera frame changes to the world.
-        let camera_local_frame = eye_world_frame.transform_point3(vec3(new_x, new_y, new_z));
+        // Then, we can just calculate side and up changes and their combined delta.
+        let side_change = -delta_horizontal as f32 * right_dir * distance * 0.1;
+        let up_change = delta_vertical as f32 * up_dir * distance * 0.1;
 
-        // Subtract the camera eye to determine the delta.
-        let delta = camera_local_frame - self.camera.eye;
+        // And this here allows us to move the target into the direction we are currently looking at.
+        let forward_change = view_direction * delta_distance * 0.5;
+
+        // Add the individual components together.
+        let change = side_change + up_change + forward_change;
 
         // Offset that with the target and the eye.
-        self.camera.target += delta;
-        self.camera.eye += delta;
+        self.camera.target += change;
+        self.camera.eye += change;
     }
 }
 

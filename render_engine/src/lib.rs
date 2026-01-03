@@ -292,9 +292,18 @@ impl<T: Drawable> winit::application::ApplicationHandler<State> for App<T> {
                 state.mouse_position = position;
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                let s = -0.1;
-                if let winit::event::MouseScrollDelta::LineDelta(_horizontal, vertical) = delta {
-                    state.camera.orbit_delta(0.0, 0.0, s * vertical);
+                if state.mouse_right_down {
+                    // While holding right and scrolling, we move the target inline with the camera.
+                    if let winit::event::MouseScrollDelta::LineDelta(_horizontal, vertical) = delta
+                    {
+                        state.camera.orbit_delta_target(0.0, 0.0, vertical);
+                    }
+                } else {
+                    let s = -0.1;
+                    if let winit::event::MouseScrollDelta::LineDelta(_horizontal, vertical) = delta
+                    {
+                        state.camera.orbit_delta(0.0, 0.0, s * vertical);
+                    }
                 }
             }
             WindowEvent::KeyboardInput {
