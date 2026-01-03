@@ -42,12 +42,13 @@ impl simple_start::Drawable for LocalState {
         // https://github.com/KhronosGroup/glTF-Sample-Assets/tree/a39304cad827573c60d1ae47e4bfbb2ee43d5b13/Models/DragonAttenuation/glTF-Binary
         // let gltf_path = std::path::PathBuf::from("../../assets/DragonDispersion.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/CompareNormal.glb");
-        // let gltf_path = std::path::PathBuf::from("../../assets/DamagedHelmet.glb");
+        let gltf_path = std::path::PathBuf::from("../../assets/DamagedHelmet.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/BoxVertexColors.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/SimpleMeshes.gltf");
-        let gltf_path = std::path::PathBuf::from("../../assets/sponza.glb");
+        // let gltf_path = std::path::PathBuf::from("../../assets/sponza.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/AntiqueCamera.glb");
         // let gltf_path = std::path::PathBuf::from("../../assets/ABeautifulGame.glb");
+        // let gltf_path = std::path::PathBuf::from("../../assets/Corset.glb");
 
         // let gltf_path = std::path::PathBuf::from("../../assets/mailbox_self/mailbox.glb"); // With a texture!
 
@@ -162,7 +163,7 @@ impl simple_start::Drawable for LocalState {
                 .with_position([0.0, 1.0, -2.0])
                 .with_intensity(0.1)
                 .with_color([1.0, 1.0, 1.0]),
-            simple_start::lights::Light::ambient().with_intensity(0.1),
+            // simple_start::lights::Light::ambient().with_intensity(0.1),
             // Lights from the default gltf viewer:
             simple_start::lights::Light::directional()
                 .with_direction(

@@ -224,7 +224,6 @@ struct SurfaceLightParameters {
     roughness_factor: f32,
     metallic_factor: f32,
     occlusion: f32,
-    light_type: u32,
 };
 
 /// GGX normal distribution function.
@@ -259,6 +258,7 @@ fn schlick_fresnel(f0: vec3f, vh: f32) -> vec3f {
 }
 
 fn SurfaceLightParameters_calculate(me: ptr<function, SurfaceLightParameters>) -> vec3<f32> {
+
     // Okay, so here we actually do the PBR things!
     // gltf's material model: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#complete-model
     // For now, we're only doing something with the metal parts of it.
@@ -298,14 +298,6 @@ fn SurfaceLightParameters_calculate(me: ptr<function, SurfaceLightParameters>) -
     let nl = dot(params.normal, params.light_dir);
     let f_diffuse = (1.0 - F) * diffuse_brdf;
     let f_specular = F * specular_brdf  ;
-
-
-    if (params.light_type == LIGHT_TYPE_AMBIENT) {
-        // For ambient light, add the diffuse component.
-        return params.albedo * params.light_color * params.light_intensity * params.occlusion;
-        // return vec3f(1.0, 0.0, 0.0);
-    }
-
 
     let material = (f_diffuse + f_specular);
     return material * (params.light_color * params.light_intensity * params.occlusion) * heaviside(nl) * nl;
@@ -407,6 +399,13 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
   		    continue;
   		}
 
+        // Short circuit for ambient lights, this is... not a PBR thing, and I just winged it...
+        // Only for non metallic surface, multiplied by the roughness, add the color albedo.
+        if (light_type == LIGHT_TYPE_AMBIENT) {
+            color += (1.0 - metallic_factor) * roughness_factor * current_color * this_light.color * this_light.intensity * occlusion;
+            continue;
+        }
+
         // Light direction is from input.world_pos towards the light.
   		let light_direction = Light_direction(&this_light, input.world_pos);
         let half_dir = normalize(light_direction + view_vector);
@@ -425,7 +424,6 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
         surface_light_parameters.roughness_factor = roughness_factor;
         surface_light_parameters.metallic_factor = metallic_factor;
         surface_light_parameters.occlusion = occlusion;
-        surface_light_parameters.light_type = light_type;
 
 
         color += SurfaceLightParameters_calculate(&surface_light_parameters);

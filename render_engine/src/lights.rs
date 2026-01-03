@@ -28,6 +28,7 @@ pub struct Light {
 }
 
 impl Light {
+    /// Add a white omnidirectional light.
     pub fn omni() -> Self {
         Light {
             light_type: LightType::Omni,
@@ -36,6 +37,7 @@ impl Light {
             ..Default::default()
         }
     }
+    /// Add a white directional light.
     pub fn directional() -> Self {
         Light {
             light_type: LightType::Directional,
@@ -44,6 +46,9 @@ impl Light {
             ..Default::default()
         }
     }
+    /// Add an ambient light, this adds to the diffuse component regardless of the orientation.
+    ///
+    /// This is almost never what you want, it is not PBR correct and only applies to non-metallic rough surfaces.
     pub fn ambient() -> Self {
         Light {
             light_type: LightType::Ambient,
