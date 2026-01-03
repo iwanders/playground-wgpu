@@ -144,15 +144,15 @@ impl simple_start::Drawable for LocalState {
         let lights = simple_start::lights::CpuLights::new(state.context.clone()).with_lights(&[
             simple_start::lights::Light::directional() // sun left
                 .with_direction([0.0, 0.0, -1.0]) // vector that denotes direction of light movement, so -1.0 is from straight up.
-                .with_intensity(1.0)
+                .with_intensity(0.1)
                 .with_color([1.0, 1.0, 1.0]),
             simple_start::lights::Light::omni() // on the top of the helmet, to the right.
                 .with_position([0.0, 1.0, 1.0])
-                .with_intensity(1.0)
+                .with_intensity(0.1)
                 .with_color([1.0, 1.0, 1.0]),
             simple_start::lights::Light::omni() // Damaged side.
                 .with_position([-2.0, 0.0, 0.0])
-                .with_intensity(1.0)
+                .with_intensity(0.1)
                 .with_color([1.0, 1.0, 1.0]),
             simple_start::lights::Light::omni() // The non damaged side.
                 .with_position([2.0, 0.0, 0.0])
@@ -160,8 +160,9 @@ impl simple_start::Drawable for LocalState {
                 .with_color([1.0, 1.0, 1.0]),
             simple_start::lights::Light::omni() // back side of helm
                 .with_position([0.0, 1.0, -2.0])
-                .with_intensity(1.0)
+                .with_intensity(0.1)
                 .with_color([1.0, 1.0, 1.0]),
+            simple_start::lights::Light::ambient().with_intensity(0.1),
             // Lights from the default gltf viewer:
             simple_start::lights::Light::directional()
                 .with_direction(

@@ -44,6 +44,14 @@ impl Light {
             ..Default::default()
         }
     }
+    pub fn ambient() -> Self {
+        Light {
+            light_type: LightType::Ambient,
+            color: vec3(1.0, 1.0, 1.0),
+            intensity: 1.0,
+            ..Default::default()
+        }
+    }
     pub fn with_position<P: Into<Vec3A>>(mut self, position: P) -> Self {
         self.position = position.into();
         self

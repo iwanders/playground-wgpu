@@ -224,6 +224,7 @@ struct SurfaceLightParameters {
     roughness_factor: f32,
     metallic_factor: f32,
     occlusion: f32,
+    light_type: u32,
 };
 
 /// GGX normal distribution function.
@@ -297,6 +298,15 @@ fn SurfaceLightParameters_calculate(me: ptr<function, SurfaceLightParameters>) -
     let nl = dot(params.normal, params.light_dir);
     let f_diffuse = (1.0 - F) * diffuse_brdf;
     let f_specular = F * specular_brdf  ;
+
+
+    if (params.light_type == LIGHT_TYPE_AMBIENT) {
+        // For ambient light, add the diffuse component.
+        return params.albedo * params.light_color * params.light_intensity * params.occlusion;
+        // return vec3f(1.0, 0.0, 0.0);
+    }
+
+
     let material = (f_diffuse + f_specular);
     return material * (params.light_color * params.light_intensity * params.occlusion) * heaviside(nl) * nl;
 }
@@ -322,12 +332,13 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
     }
 
     // Should read these two globals, defaults are https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-material-pbrmetallicroughness
-    var metallic_factor = 1.0; // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicfactor
+    var metallic_factor = 0.0; // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicfactor
     var roughness_factor = 1.0; // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_roughnessfactor
 
     // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_material_pbrmetallicroughness_metallicroughnesstexture
     // metalness is from the b channel, rougnness from g, values are linear, red is ignored.
     if (texture_meta.metallic_roughness != 0){
+        metallic_factor = 1.0;
         let metallic_sampled = (textureSample(texture[texture_meta.metallic_roughness], texture_sampler[texture_meta.metallic_roughness], input.uv_pos));
         roughness_factor *= metallic_sampled.g;
         metallic_factor *= metallic_sampled.b;
@@ -414,6 +425,7 @@ fn main(input : CommonVertexOutput) -> CommonFragmentOutput
         surface_light_parameters.roughness_factor = roughness_factor;
         surface_light_parameters.metallic_factor = metallic_factor;
         surface_light_parameters.occlusion = occlusion;
+        surface_light_parameters.light_type = light_type;
 
 
         color += SurfaceLightParameters_calculate(&surface_light_parameters);
